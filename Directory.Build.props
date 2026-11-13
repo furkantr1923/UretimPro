@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    CVE-2025-6965: EF Core 10.0.0, eski SQLitePCLRaw.lib.e_sqlite3 2.1.11 paketini getirir.
+    Web projesi güncel SQLite içeren SourceGear.sqlite3 paketini ekleyerek yerel kütüphaneyi değiştirir.
+    Eski paket bağımlılık ağacında göründüğü için bu uyarı bilinçli olarak bastırılır.
+  -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+</Project>

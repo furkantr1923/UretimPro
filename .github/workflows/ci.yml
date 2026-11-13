@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    name: Derleme ve testler
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Paketleri yükle
+        run: dotnet restore UretimPro.slnx
+      - name: Derle
+        run: dotnet build UretimPro.slnx -c Release --no-restore
+      - name: Testler
+        run: dotnet test UretimPro.slnx -c Release --no-build --verbosity normal
+
+  exe:
+    name: Windows exe (USB sürümü)
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Tek dosya exe yayınla
+        run: dotnet publish UretimPro.Web -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UretimPro-win-x64
+          path: publish
+
+  docker:
+    name: Docker imajı
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: İmajı derle
+        run: docker build -t uretimpro:${{ github.sha }} .

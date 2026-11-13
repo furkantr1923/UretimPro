@@ -1,0 +1,71 @@
+@model EmirListeModel
+@{
+    ViewData["Title"] = "Üretim emirleri";
+    var durumlar = new[] { EmirDurum.Planlandi, EmirDurum.Uretimde, EmirDurum.Bloke, EmirDurum.Tamamlandi, EmirDurum.Iptal };
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <h1 tabindex="-1">Üretim emirleri</h1>
+        <p>Her emir bir üretim lotudur; parçalar seri numarasıyla rota boyunca izlenir.</p>
+    </div>
+    <div class="eylemler">
+        @if (User.RoldeMi(Roller.Admin, Roller.Yonetici))
+        {
+            <a class="buton bakir" asp-action="Yeni">@Ikon.Ciz("arti", 16) Yeni üretim emri</a>
+        }
+    </div>
+</div>
+
+<div class="esnek arasi">
+    <nav class="sekmeler" aria-label="Durum filtresi">
+        <a class="@(string.IsNullOrEmpty(Model.Durum) ? "aktif" : "")" asp-action="Index">Tümü</a>
+        @foreach (var d in durumlar)
+        {
+            <a class="@(Model.Durum == d ? "aktif" : "")" asp-action="Index" asp-route-durum="@d">@d</a>
+        }
+    </nav>
+    <form method="get" class="arama" style="max-width:320px">
+        @Ikon.Ciz("ara", 16)
+        <input type="hidden" name="durum" value="@Model.Durum" />
+        <input type="search" name="q" value="@Model.Arama" placeholder="Emir, lot veya ürün kodu" aria-label="Emir ara" />
+    </form>
+</div>
+
+<section class="kart">
+    @if (Model.Emirler.Count == 0)
+    {
+        <div class="bos"><div class="ikon">@Ikon.Ciz("uretim", 36)</div>Bu filtreye uygun emir yok.</div>
+    }
+    else
+    {
+        <div class="tablo-kutu">
+            <table class="tablo genis-tablo">
+                <thead>
+                    <tr><th>Emir</th><th>Lot</th><th>Ürün</th><th>Plan</th><th>İlerleme</th><th>Durum</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in Model.Emirler)
+                    {
+                        var biten = Model.Tamamlanan.GetValueOrDefault(e.Id);
+                        var renk = e.Durum == EmirDurum.Bloke ? "kirmizi" : e.Durum == EmirDurum.Tamamlandi ? "yesil" : "";
+                        <tr class="@(e.Durum == EmirDurum.Bloke ? "vurgu" : "")">
+                            <td><a class="mono" asp-action="Detay" asp-route-id="@e.Id"><strong>@e.EmirNo</strong></a></td>
+                            <td class="mono">@e.LotNo</td>
+                            <td>@e.Urun?.Ad<br /><small class="renk-soluk mono">@e.Urun?.Kod</small></td>
+                            <td>@e.PlanTarihi.ToString("dd.MM.yyyy")</td>
+                            <td>
+                                <div class="ilerleme">
+                                    <div class="cubuk"><div class="dolu @renk" style="--w:@Gorunum.Yuzde(biten, e.Miktar)%"></div></div>
+                                    <span class="metin">@biten/@e.Miktar</span>
+                                </div>
+                            </td>
+                            <td><span class="rozet @Gorunum.EmirSinif(e.Durum)">@e.Durum</span></td>
+                            <td class="sag"><a class="buton ikincil kucuk" asp-action="Detay" asp-route-id="@e.Id">Detay</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

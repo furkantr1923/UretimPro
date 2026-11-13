@@ -1,0 +1,60 @@
+@model List<OlcumAleti>
+@{
+    ViewData["Title"] = "Kalibrasyon";
+    var simdi = DateTime.Now;
+    var yetkili = User.RoldeMi(Roller.Kalite, Roller.Admin);
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Kalite › Kalibrasyon</div>
+        <h1 tabindex="-1">Ölçüm aletleri ve kalibrasyon</h1>
+        <p>Kalibrasyon süresi geçmiş bir aletle istasyonda ölçüm kaydedilemez.</p>
+    </div>
+</div>
+
+<section class="kpiler">
+    <div class="kpi"><span class="etiket">Toplam alet</span><span class="deger" data-sayac="@Model.Count">0</span></div>
+    <div class="kpi"><span class="etiket">Geçerli</span><span class="deger renk-yesil" data-sayac="@(Model.Count(a => a.GecerliMi(simdi)))">0</span></div>
+    <div class="kpi"><span class="etiket">14 gün içinde dolacak</span><span class="deger renk-sari" data-sayac="@(Model.Count(a => a.GecerliMi(simdi) && (a.SonrakiKalibrasyon - simdi).TotalDays <= 14))">0</span></div>
+    <div class="kpi @(Model.Any(a => !a.GecerliMi(simdi)) ? "kritik" : "")"><span class="etiket">Süresi geçmiş</span><span class="deger" data-sayac="@(Model.Count(a => !a.GecerliMi(simdi)))">0</span></div>
+</section>
+
+<section class="kart">
+    <div class="tablo-kutu">
+        <table class="tablo genis-tablo">
+            <thead><tr><th>Kod</th><th>Alet</th><th>Tür</th><th>Son kalibrasyon</th><th>Sonraki</th><th>Kalan süre</th><th>Durum</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var a in Model)
+                {
+                    var kalanGun = (int)Math.Floor((a.SonrakiKalibrasyon - simdi).TotalDays);
+                    var gecerli = a.GecerliMi(simdi);
+                    var yuzde = Math.Clamp(100.0 * (simdi - a.SonKalibrasyon).TotalDays / a.PeriyotGun, 0, 100);
+                    var sinif = !gecerli ? "kirmizi" : kalanGun <= 14 ? "sari" : "yesil";
+                    <tr class="@(gecerli ? "" : "vurgu")">
+                        <td class="mono"><strong>@a.Kod</strong></td>
+                        <td>@a.Ad</td>
+                        <td>@a.Tur</td>
+                        <td>@a.SonKalibrasyon.ToString("dd.MM.yyyy")</td>
+                        <td>@a.SonrakiKalibrasyon.ToString("dd.MM.yyyy")</td>
+                        <td>
+                            <div class="ilerleme">
+                                <div class="cubuk"><div class="dolu @sinif" style="--w:@Sayi.Css(yuzde)%"></div></div>
+                                <span class="metin">@(gecerli ? $"{kalanGun} gün" : $"{-kalanGun} gün geçti")</span>
+                            </div>
+                        </td>
+                        <td><span class="rozet @sinif @(gecerli ? "" : "nabizli")">@(gecerli ? (kalanGun <= 14 ? "Yaklaşıyor" : "Geçerli") : "Kullanılamaz")</span></td>
+                        <td class="sag">
+                            @if (yetkili)
+                            {
+                                <form method="post" asp-action="Kalibre" asp-route-id="@a.Id">
+                                    <button type="submit" class="buton ikincil kucuk">@Ikon.Ciz("kalibrasyon", 14) Kalibre edildi</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>

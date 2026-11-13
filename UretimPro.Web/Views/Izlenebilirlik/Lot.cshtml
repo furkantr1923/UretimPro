@@ -1,0 +1,62 @@
+@using System.Text.Json
+@model LotIzModel
+@{
+    var e = Model.Emir;
+    ViewData["Title"] = e.LotNo;
+    var durumJson = JsonSerializer.Serialize(Model.DurumSayilari.Select(d => new { etiket = d.Key, deger = d.Value }));
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol"><a asp-action="Index">İzlenebilirlik</a> › Üretim lotu</div>
+        <h1 tabindex="-1" class="esnek"><span class="mono">@e.LotNo</span> <span class="rozet @Gorunum.EmirSinif(e.Durum)">@e.Durum</span></h1>
+        <p>@e.Urun?.Ad · Emir <a class="mono" asp-controller="Uretim" asp-action="Detay" asp-route-id="@e.Id">@e.EmirNo</a> · @e.Miktar adet</p>
+    </div>
+    <div class="eylemler">
+        <a class="buton bakir" asp-action="Agac" asp-route-lot="@e.LotNo">@Ikon.Ciz("agac", 16) Soy ağacı</a>
+        <a class="buton ikincil" asp-controller="Rapor" asp-action="LotSertifika" asp-route-lotNo="@e.LotNo">@Ikon.Ciz("pdf", 16) Uygunluk sertifikası</a>
+        <a class="buton ikincil" asp-controller="Rapor" asp-action="LotOlcumler" asp-route-lotNo="@e.LotNo">@Ikon.Ciz("excel", 16) Ölçümler (Excel)</a>
+    </div>
+</div>
+
+<div class="yan-yana">
+    <section class="kart genis">
+        <div class="kart-baslik"><h2>@Ikon.Ciz("agac") Kaynaktan ürüne</h2></div>
+        <div class="dikey" style="gap:14px">
+            @foreach (var h in Model.Hammaddeler)
+            {
+                <a class="uyari-oge mavi" asp-action="Hammadde" asp-route-lotNo="@h.HammaddeLotu?.LotNo">
+                    <span class="ikon">@Ikon.Ciz("depo")</span>
+                    <span><strong>@h.HammaddeLotu?.LotNo · @h.HammaddeLotu?.Malzeme?.Ad</strong><span>@h.HammaddeLotu?.Tedarikci · @h.Miktar.ToString("N1") kg kullanıldı</span></span>
+                </a>
+            }
+            <div class="sag renk-soluk" style="text-align:center">↓</div>
+            <div class="uyari-oge sari" style="cursor:default">
+                <span class="ikon">@Ikon.Ciz("uretim")</span>
+                <span><strong>@e.LotNo · @e.Urun?.Ad</strong><span>@e.Miktar parça · başlangıç @e.BaslamaTarihi?.ToString("dd.MM.yyyy HH:mm")</span></span>
+            </div>
+            @foreach (var n in Model.Ncrler)
+            {
+                <a class="uyari-oge kirmizi" asp-controller="Ncr" asp-action="Detay" asp-route-id="@n.Id">
+                    <span class="ikon">@Ikon.Ciz("ncr")</span>
+                    <span><strong>@n.NcrNo · @n.Durum</strong><span>@n.Tanim</span></span>
+                </a>
+            }
+        </div>
+
+        <div class="kart-baslik mt"><h2>@Ikon.Ciz("qr") Parçalar</h2></div>
+        <div class="esnek" style="gap:6px">
+            @foreach (var p in e.Parcalar.OrderBy(x => x.SeriNo))
+            {
+                <a class="rozet @Gorunum.ParcaSinif(p.Durum) mono" asp-action="Parca" asp-route-seriNo="@p.SeriNo" title="@p.Durum">@p.SeriNo</a>
+            }
+        </div>
+    </section>
+
+    <aside class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("urun") Parça durumları</h2></div>
+            <div class="grafik" data-grafik="halka" data-birim="parça" data-veri="@durumJson"></div>
+        </section>
+    </aside>
+</div>

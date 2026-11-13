@@ -1,0 +1,13 @@
+services:
+  uretimpro:
+    build: .
+    image: uretimpro:2.0
+    container_name: uretimpro
+    ports:
+      - "5080:8080"
+    volumes:
+      - uretimpro-veri:/veri
+    restart: unless-stopped
+
+volumes:
+  uretimpro-veri:

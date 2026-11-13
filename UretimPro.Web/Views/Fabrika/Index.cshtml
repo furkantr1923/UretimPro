@@ -1,0 +1,175 @@
+@using System.Text.Json
+@model FabrikaModel
+@{
+    ViewData["Title"] = "Fabrika yerleşimi";
+    var calisan = Model.Makineler.Count(m => m.Makine.Durum == MakineDurum.Calisiyor);
+    var bugunToplam = Model.BugunAdet.Values.Sum();
+
+    var makineJson = JsonSerializer.Serialize(Model.Makineler.Select(x =>
+    {
+        var m = x.Makine;
+        Model.AcikDuruslar.TryGetValue(m.Id, out var d);
+        Model.Bakim.TryGetValue(m.Id, out var b);
+        return new
+        {
+            id = m.Id, kod = m.Kod, ad = m.Ad, tur = m.Tur, durum = m.Durum, sinif = Gorunum.MakineSinif(m.Durum),
+            x = m.KonumX, y = m.KonumY,
+            planli = x.Planli, oee = x.Sonuc.Oee, kul = x.Sonuc.Kullanilabilirlik, perf = x.Sonuc.Performans, kal = x.Sonuc.Kalite,
+            adet = Model.BugunAdet.GetValueOrDefault(m.Id), durusDk = Math.Round(x.Girdi.DurusDakika), ideal = m.IdealCevrimSn,
+            op = Model.SonOperator.GetValueOrDefault(m.Id),
+            durus = d == null ? null : new { neden = d.Neden, aciklama = d.Aciklama, sure = Gorunum.Sure(DateTime.Now - d.Baslangic), kisi = d.BildirenKisi },
+            bakim = b == null ? null : new { metin = Gorunum.BakimMetin(b.Seviye), sinif = Gorunum.BakimSinif(b.Seviye), kalanGun = b.KalanGun, kalanAdet = b.KalanAdet }
+        };
+    }));
+    var akisJson = JsonSerializer.Serialize(Model.Akislar.Select(a => new { kaynak = a.Kaynak, hedef = a.Hedef, adet = a.Adet }));
+
+    var bolgeler = new (int X, int Y, int G, int Y2, string Ad)[]
+    {
+        (20, 40, 140, 480, "Hammadde deposu"),
+        (172, 196, 186, 168, "Kesimhane"),
+        (382, 50, 386, 440, "Talaşlı imalat ve şekillendirme"),
+        (782, 120, 186, 330, "Taşlama ve kalite"),
+        (982, 196, 186, 168, "Paketleme"),
+        (1186, 40, 80, 480, "Sevkiyat")
+    };
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Operasyon › Fabrika yerleşimi</div>
+        <h1 tabindex="-1">Canlı fabrika planı</h1>
+        <p>Makinelerin anlık durumu, bugünkü üretimi ve OEE değeri. Bir makineye tıklayın. <span class="rozet yesil"><span class="nokta"></span>Canlı</span></p>
+    </div>
+    <div class="eylemler">
+        <div class="mini-kpi"><small>Bugünkü OEE</small><strong class="renk-@OeeHesaplayici.Sinif(Model.Toplam.Oee)" data-sayac="@Sayi.Css(Model.Toplam.Oee * 100)" data-basamak="1" data-onek="%">%0</strong></div>
+        <div class="mini-kpi"><small>Çalışan makine</small><strong>@calisan<span class="renk-soluk">/@Model.Makineler.Count</span></strong></div>
+        <div class="mini-kpi"><small>Bugün işlem</small><strong data-sayac="@bugunToplam" id="fabrikaToplam">0</strong></div>
+        <div class="mini-kpi @(Model.AcikDuruslar.Count > 0 ? "kritik" : "")"><small>Açık duruş</small><strong>@Model.AcikDuruslar.Count</strong></div>
+    </div>
+</div>
+
+<section class="kart fabrika-kart">
+    <div class="kart-baslik">
+        <h2>@Ikon.Ciz("harita") Üretim alanı</h2>
+        <div class="lejant">
+            <span><i style="background:var(--yesil)"></i>Çalışıyor</span>
+            <span><i style="background:var(--sari)"></i>Bekliyor</span>
+            <span><i style="background:var(--kirmizi)"></i>Arızalı</span>
+            <span><i style="background:var(--mavi)"></i>Bakımda</span>
+            <span><i class="akis-lejant"></i>Malzeme akışı</span>
+        </div>
+    </div>
+    <div class="fabrika-kutu">
+        <svg class="fabrika-plan" id="fabrikaPlan" viewBox="0 0 1280 560" role="img" aria-label="Fabrika yerleşim planı"
+             data-makineler="@makineJson" data-akislar="@akisJson" data-secili="@Model.SeciliKod">
+            <defs>
+                <pattern id="planIzgara" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M20 0H0V20" fill="none" class="plan-izgara" />
+                </pattern>
+                <marker id="okUcu" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0 0L10 5L0 10z" class="ok-ucu" />
+                </marker>
+            </defs>
+            <rect width="1280" height="560" class="plan-zemin" />
+            <rect width="1280" height="560" fill="url(#planIzgara)" />
+
+            @foreach (var b in bolgeler)
+            {
+                <g class="bolge">
+                    <rect x="@b.X" y="@b.Y" width="@b.G" height="@b.Y2" rx="16" />
+                    <text x="@(b.X + 12)" y="@(b.Y + 22)">@b.Ad</text>
+                </g>
+            }
+
+            @* Depo rafları ve sevkiyat paletleri *@
+            @for (var i = 0; i < 5; i++)
+            {
+                <g class="raf" transform="translate(40,@(90 + i * 84))">
+                    <rect width="100" height="56" rx="6" />
+                    <rect x="8" y="8" width="26" height="40" rx="3" class="raf-yuk" />
+                    <rect x="38" y="8" width="26" height="40" rx="3" class="raf-yuk" />
+                    <rect x="68" y="8" width="24" height="40" rx="3" class="raf-yuk" style="opacity:@(i % 2 == 0 ? "0.35" : "1")" />
+                </g>
+            }
+            @for (var i = 0; i < 4; i++)
+            {
+                <g class="raf" transform="translate(1198,@(110 + i * 100))">
+                    <rect width="56" height="64" rx="6" />
+                    <rect x="8" y="8" width="40" height="22" rx="3" class="raf-yuk" />
+                    <rect x="8" y="34" width="40" height="22" rx="3" class="raf-yuk" style="opacity:@(i == 3 ? "0.35" : "1")" />
+                </g>
+            }
+
+            <g id="akisKatman"></g>
+
+            @foreach (var x in Model.Makineler)
+            {
+                var m = x.Makine;
+                var adet = Model.BugunAdet.GetValueOrDefault(m.Id);
+                var oeeYuzde = (int)Math.Round(x.Sonuc.Oee * 100);
+                var cevre = 2 * Math.PI * 17;
+                var dolu = x.Planli ? cevre * x.Sonuc.Oee : 0;
+                var op = Model.SonOperator.GetValueOrDefault(m.Id);
+                var bakimGecikti = Model.Bakim.TryGetValue(m.Id, out var bd) && bd.Seviye == BakimSeviye.Gecikti;
+                <g class="plan-makine durum-@Gorunum.MakineSinif(m.Durum) @(m.Kod == Model.SeciliKod ? "secili" : "")" data-id="@m.Id" data-kod="@m.Kod"
+                   transform="translate(@m.KonumX,@m.KonumY)" tabindex="0" role="button" aria-label="@m.Kod @m.Ad, @m.Durum">
+                    <rect class="halka-vurgu" x="-6" y="-6" width="162" height="108" rx="16" />
+                    <rect class="govde" width="150" height="96" rx="12" />
+                    <rect class="serit" x="0" y="10" width="5" height="76" rx="2.5" />
+                    <text class="kod" x="16" y="25">@m.Kod</text>
+                    <text class="ad" x="16" y="41">@m.Ad</text>
+                    <text class="sayi" x="16" y="70" data-adet="@adet">@adet</text>
+                    <text class="birim" x="16" y="84">@(string.IsNullOrEmpty(op) ? "işlem bugün" : "bugün ·")</text>
+                    <circle class="oee-zemin" cx="122" cy="62" r="17" />
+                    <circle class="oee-yay oee-@OeeHesaplayici.Sinif(x.Sonuc.Oee)" cx="122" cy="62" r="17"
+                            style="stroke-dasharray:@Sayi.Css(dolu) @Sayi.Css(cevre)" transform="rotate(-90 122 62)" />
+                    <text class="oee-metin" x="122" y="66">@(x.Planli ? oeeYuzde.ToString() : "–")</text>
+                    <circle class="isik" cx="134" cy="18" r="5.5" />
+                    @if (!string.IsNullOrEmpty(op))
+                    {
+                        <g><text class="op" x="52" y="84">@op.Split(' ')[0]</text></g>
+                    }
+                    @if (m.Durum == MakineDurum.Arizali)
+                    {
+                        <g class="uyari-isaret" transform="translate(132,-10)"><circle r="11" /><text y="4">!</text></g>
+                    }
+                    else if (bakimGecikti)
+                    {
+                        <g class="uyari-isaret sari" transform="translate(132,-10)"><circle r="11" /><text y="4">B</text></g>
+                    }
+                </g>
+            }
+        </svg>
+    </div>
+    <small class="renk-soluk">Halkadaki sayı bugünkü OEE yüzdesidir. Akan noktalar bugünkü üretim hacmine göre canlandırılır; gerçek bir işlem okutulduğunda ilgili makine parlar.</small>
+</section>
+
+<div class="yan-yana">
+    <section class="kart genis" id="makineDetay" aria-live="polite">
+        <div class="bos"><div class="ikon">@Ikon.Ciz("fabrika", 36)</div>Ayrıntı için plandan bir makine seçin.</div>
+    </section>
+
+    <aside class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("durus") Açık duruşlar</h2><a asp-controller="Durus" asp-action="Index">Tümü</a></div>
+            @if (Model.AcikDuruslar.Count == 0)
+            {
+                <div class="bos"><div class="ikon">@Ikon.Ciz("tik", 28)</div>Duran makine yok.</div>
+            }
+            <div class="uyarilar">
+                @foreach (var d in Model.AcikDuruslar.Values)
+                {
+                    var mk = Model.Makineler.First(x => x.Makine.Id == d.MakineId).Makine;
+                    <a class="uyari-oge @(d.Neden == DurusNedeni.Ariza ? "kirmizi" : "sari")" href="/fabrika?makine=@mk.Kod">
+                        <span class="ikon">@Ikon.Ciz("durus", 20)</span>
+                        <span><strong>@mk.Kod · @d.Neden</strong><span>@Gorunum.Sure(DateTime.Now - d.Baslangic) · @d.Aciklama</span></span>
+                    </a>
+                }
+            </div>
+        </section>
+    </aside>
+</div>
+
+@section Scripts {
+    <script src="~/js/fabrika.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,24 @@
+@model HammaddeLotu
+@{
+    ViewData["Title"] = $"{Model.LotNo} etiketi";
+}
+
+<div class="sayfa-baslik yazdirma-gizle">
+    <div>
+        <div class="yol"><a asp-action="Index">Depo</a> › @Model.LotNo</div>
+        <h1 tabindex="-1">Hammadde lot etiketi</h1>
+    </div>
+    <div class="eylemler">
+        <button type="button" class="buton bakir" onclick="window.print()">@Ikon.Ciz("yazici", 16) Yazdır</button>
+    </div>
+</div>
+
+<section class="kart" style="max-width:420px">
+    <div class="qr-etiket qr-etiket-buyuk">
+        @QrServisi.Svg(Model.LotNo, 6)
+        <span class="seri" style="font-size:20px">@Model.LotNo</span>
+        <strong>@Model.Malzeme?.Ad</strong>
+        <small>@Model.Tedarikci · Sertifika @Model.SertifikaNo</small>
+        <small>Giriş @Model.GirisTarihi.ToString("dd.MM.yyyy") · @Model.BaslangicMiktar.ToString("N0") kg</small>
+    </div>
+</section>

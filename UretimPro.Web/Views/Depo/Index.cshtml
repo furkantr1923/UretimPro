@@ -1,0 +1,111 @@
+@using System.Text.Json
+@model DepoModel
+@{
+    ViewData["Title"] = "Depo ve stok";
+    var girisYetkisi = User.RoldeMi(Roller.DepoBakim, Roller.Admin);
+    var tuketimJson = JsonSerializer.Serialize(Model.Stoklar.Select(s => new { etiket = s.Malzeme.Ad, deger = Math.Round(s.Tuketim30Gun, 1) }));
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Tesis › Depo</div>
+        <h1 tabindex="-1">Depo ve hammadde stoku</h1>
+        <p>Hammadde lot bazında takip edilir; üretim emri başlarken FIFO ile en eski lot kullanılır.</p>
+    </div>
+</div>
+
+<section class="kpiler">
+    @foreach (var s in Model.Stoklar)
+    {
+        var kritik = s.Kalan < s.Malzeme.MinimumStok;
+        var gunluk = s.Tuketim30Gun / 30;
+        var yeterlilik = gunluk > 0 ? s.Kalan / gunluk : 999;
+        <div class="kpi @(kritik ? "kritik" : "")">
+            <span class="etiket">@Ikon.Ciz("depo", 16) @s.Malzeme.Ad</span>
+            <span class="deger" data-sayac="@Sayi.Css(Math.Round(s.Kalan))" data-sonek=" kg">0</span>
+            <div class="ilerleme">
+                <div class="cubuk"><div class="dolu @(kritik ? "kirmizi" : "yesil")" style="--w:@Sayi.Css(Math.Min(100, s.Malzeme.MinimumStok > 0 ? s.Kalan / (s.Malzeme.MinimumStok * 2) * 100 : 100))%"></div></div>
+            </div>
+            <span class="alt @(kritik ? "renk-kirmizi" : "renk-soluk")">
+                @(kritik ? "Kritik · " : "")min @s.Malzeme.MinimumStok.ToString("N0") kg · ~@(yeterlilik >= 999 ? "∞" : yeterlilik.ToString("0")) gün yeter
+            </span>
+        </div>
+    }
+</section>
+
+<div class="yan-yana">
+    <section class="kart genis">
+        <div class="kart-baslik"><h2>@Ikon.Ciz("depo") Hammadde lotları</h2><small class="renk-soluk">@Model.Lotlar.Count lot</small></div>
+        <div class="tablo-kutu" style="max-height:520px;overflow:auto">
+            <table class="tablo genis-tablo">
+                <thead><tr><th>Lot no</th><th>Malzeme</th><th>Tedarikçi</th><th>Giriş</th><th>Kalan</th><th>Sertifika</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var l in Model.Lotlar)
+                    {
+                        <tr>
+                            <td><a class="mono" asp-controller="Izlenebilirlik" asp-action="Hammadde" asp-route-lotNo="@l.LotNo"><strong>@l.LotNo</strong></a></td>
+                            <td>@l.Malzeme?.Ad</td>
+                            <td>@l.Tedarikci</td>
+                            <td>@l.GirisTarihi.ToString("dd.MM.yyyy")</td>
+                            <td>
+                                <div class="ilerleme" style="min-width:140px">
+                                    <div class="cubuk"><div class="dolu @(l.KalanMiktar <= 0 ? "" : "yesil")" style="--w:@Gorunum.Yuzde((int)l.KalanMiktar, (int)l.BaslangicMiktar)%"></div></div>
+                                    <span class="metin">@l.KalanMiktar.ToString("N0")/@l.BaslangicMiktar.ToString("N0")</span>
+                                </div>
+                            </td>
+                            <td class="mono">@l.SertifikaNo</td>
+                            <td class="sag"><a class="buton ikincil kucuk" asp-action="Etiket" asp-route-id="@l.Id">@Ikon.Ciz("qr", 14) Etiket</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <aside class="dar">
+        @if (girisYetkisi)
+        {
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("arti") Hammadde girişi</h2></div>
+                <form method="post" asp-action="Giris" class="form-dikey">
+                    <label class="alan">Malzeme
+                        <select name="malzemeId" class="girdi">
+                            @foreach (var m in Model.Malzemeler)
+                            {
+                                <option value="@m.Id">@m.Ad</option>
+                            }
+                        </select>
+                    </label>
+                    <div class="form-satir">
+                        <label class="alan">Miktar (kg)
+                            <input name="miktar" class="girdi mono" inputmode="decimal" placeholder="900" required />
+                        </label>
+                        <label class="alan">Sertifika no
+                            <input name="sertifikaNo" class="girdi mono" placeholder="3.1-123456" />
+                        </label>
+                    </div>
+                    <label class="alan">Tedarikçi
+                        <input name="tedarikci" class="girdi" placeholder="Örn. Kardemir" required />
+                    </label>
+                    <button type="submit" class="buton bakir">@Ikon.Ciz("depo", 16) Depoya al ve lot oluştur</button>
+                </form>
+            </section>
+        }
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("spc") 30 günlük tüketim</h2></div>
+            <div class="grafik" data-grafik="cubuk" data-birim="kg" data-etiket="30 günlük tüketim" data-veri="@tuketimJson"></div>
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("saat") Son stok çıkışları</h2></div>
+            @foreach (var t in Model.SonHareketler)
+            {
+                <div class="esnek arasi" style="padding:8px 0;border-bottom:1px solid var(--cizgi);font-size:13px">
+                    <span><span class="mono">@t.HammaddeLotu?.LotNo</span> → <a class="mono" asp-controller="Uretim" asp-action="Detay" asp-route-id="@t.UretimEmriId">@t.UretimEmri?.EmirNo</a></span>
+                    <strong class="mono">−@t.Miktar.ToString("N1") kg</strong>
+                </div>
+            }
+        </section>
+    </aside>
+</div>

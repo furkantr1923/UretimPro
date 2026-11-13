@@ -1,0 +1,68 @@
+@model NcrListeModel
+@{
+    ViewData["Title"] = "Uygunsuzluklar";
+    var durumlar = NcrDurum.Tumu;
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Kalite › NCR</div>
+        <h1 tabindex="-1">Uygunsuzluk raporları (NCR)</h1>
+        <p>Tolerans dışı ölçümde sistem parçayı ve lotu bloke eder, NCR'ı otomatik açar.</p>
+    </div>
+</div>
+
+<section class="kpiler">
+    @foreach (var d in durumlar)
+    {
+        var adet = Model.Sayilar.GetValueOrDefault(d);
+        <a class="kpi @(d == NcrDurum.Acik && adet > 0 ? "kritik" : "")" asp-action="Index" asp-route-durum="@d" style="text-decoration:none;color:inherit">
+            <span class="etiket"><span class="rozet @Gorunum.NcrSinif(d)">@d</span></span>
+            <span class="deger" data-sayac="@adet">0</span>
+        </a>
+    }
+</section>
+
+<nav class="sekmeler" aria-label="Durum filtresi">
+    <a class="@(string.IsNullOrEmpty(Model.Durum) ? "aktif" : "")" asp-action="Index">Tümü</a>
+    @foreach (var d in durumlar)
+    {
+        <a class="@(Model.Durum == d ? "aktif" : "")" asp-action="Index" asp-route-durum="@d">@d<span class="sayi">@Model.Sayilar.GetValueOrDefault(d)</span></a>
+    }
+</nav>
+
+<section class="kart">
+    @if (Model.Ncrler.Count == 0)
+    {
+        <div class="bos"><div class="ikon">@Ikon.Ciz("tik", 36)</div>Bu filtrede uygunsuzluk yok.</div>
+    }
+    else
+    {
+        <div class="tablo-kutu">
+            <table class="tablo genis-tablo">
+                <thead><tr><th>NCR</th><th>Açılış</th><th>Lot / parça</th><th>Tanım</th><th>Karar</th><th>Durum</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var n in Model.Ncrler)
+                    {
+                        var acikSaat = (int)(DateTime.Now - n.AcilisTarihi).TotalHours;
+                        <tr class="@(n.Durum == NcrDurum.Acik ? "vurgu" : "")">
+                            <td><a class="mono" asp-action="Detay" asp-route-id="@n.Id"><strong>@n.NcrNo</strong></a></td>
+                            <td>@n.AcilisTarihi.ToString("dd.MM.yyyy HH:mm")<br /><small class="renk-soluk">@Gorunum.GecenSure(n.AcilisTarihi)</small></td>
+                            <td><span class="mono">@n.UretimEmri?.LotNo</span><br /><small class="mono renk-soluk">@n.Parca?.SeriNo</small></td>
+                            <td style="max-width:360px">@n.Tanim</td>
+                            <td>@(n.Karar ?? "—")</td>
+                            <td>
+                                <span class="rozet @Gorunum.NcrSinif(n.Durum) @(n.Durum == NcrDurum.Acik ? "nabizli" : "")">@n.Durum</span>
+                                @if (n.Durum == NcrDurum.Acik)
+                                {
+                                    <br /><small class="@(acikSaat >= 48 ? "renk-kirmizi" : "renk-soluk")">@acikSaat saattir açık</small>
+                                }
+                            </td>
+                            <td class="sag"><a class="buton ikincil kucuk" asp-action="Detay" asp-route-id="@n.Id">Aç</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

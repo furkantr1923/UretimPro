@@ -1,0 +1,40 @@
+@model UretimEmri
+@{
+    ViewData["Title"] = $"{Model.EmirNo} etiketleri";
+    var parcalar = Model.Parcalar.OrderBy(p => p.SeriNo).ToList();
+}
+
+<div class="sayfa-baslik yazdirma-gizle">
+    <div>
+        <div class="yol"><a asp-action="Detay" asp-route-id="@Model.Id">@Model.EmirNo</a> › QR etiketleri</div>
+        <h1 tabindex="-1">QR etiketleri</h1>
+        <p>@Model.Urun?.Ad · Lot @Model.LotNo · @parcalar.Count etiket. Operatör bu etiketi istasyonda okutur.</p>
+    </div>
+    <div class="eylemler">
+        <button type="button" class="buton bakir" onclick="window.print()">@Ikon.Ciz("yazici", 16) Yazdır</button>
+    </div>
+</div>
+
+<section class="kart">
+    <div class="esnek" style="gap:24px;margin-bottom:18px">
+        <div class="qr-etiket qr-etiket-buyuk">
+            @QrServisi.Svg(Model.LotNo, 6)
+            <span class="seri">@Model.LotNo</span>
+            <small>LOT · @Model.Urun?.Ad · @Model.Miktar adet</small>
+        </div>
+        <div class="dikey">
+            <strong>Lot etiketi</strong>
+            <small class="renk-soluk">Kasaya / kutuya yapıştırılır. Okutulunca tüm lotun geçmişi açılır.</small>
+        </div>
+    </div>
+    <div class="qr-etiketler">
+        @foreach (var p in parcalar)
+        {
+            <div class="qr-etiket">
+                @QrServisi.Svg(p.SeriNo, 4)
+                <span class="seri">@p.SeriNo</span>
+                <small>@Model.Urun?.Kod · @Model.LotNo</small>
+            </div>
+        }
+    </div>
+</section>

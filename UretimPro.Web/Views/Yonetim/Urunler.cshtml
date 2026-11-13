@@ -1,0 +1,62 @@
+@model UrunListeModel
+@{
+    ViewData["Title"] = "Ürünler ve toleranslar";
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Yönetim › Ürünler</div>
+        <h1 tabindex="-1">Ürünler, rotalar ve toleranslar</h1>
+        <p>Her ürünün kendine özel rotası vardır; adımlar sırayla yapılır. Tolerans değişiklikleri audit log'a eski ve yeni değeriyle yazılır.</p>
+    </div>
+</div>
+
+@foreach (var u in Model.Urunler)
+{
+    <section class="kart">
+        <div class="kart-baslik">
+            <h2>@Ikon.Ciz("urun") <span class="mono">@u.Kod</span> · @u.Ad</h2>
+            <span class="rozet bakir">@u.Malzeme?.Ad · @u.BirimTuketim.ToString("0.##") kg/adet</span>
+        </div>
+
+        <div class="rota">
+            @foreach (var a in u.RotaAdimlari.OrderBy(x => x.Sira))
+            {
+                <div class="rota-adim">
+                    <span class="sira">ADIM @a.Sira</span>
+                    <strong>@a.Ad</strong>
+                    <small class="renk-soluk mono">@a.Makine?.Kod</small>
+                </div>
+            }
+        </div>
+
+        @if (u.Karakteristikler.Count > 0)
+        {
+            <div class="tablo-kutu mt">
+                <table class="tablo">
+                    <thead><tr><th>Karakteristik</th><th>Adım</th><th>Nominal</th><th>Alt sınır</th><th>Üst sınır</th><th>Ölçüm aleti</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var k in u.Karakteristikler.OrderBy(x => x.RotaAdimiId))
+                        {
+                            var adim = u.RotaAdimlari.FirstOrDefault(x => x.Id == k.RotaAdimiId);
+                            var formId = "tol" + k.Id;
+                            <tr>
+                                <td><strong>@k.Ad</strong> <small class="renk-soluk">(@k.Birim)</small></td>
+                                <td>@adim?.Sira. @adim?.Ad</td>
+                                <td class="mono">@k.Nominal.ToString("0.###")</td>
+                                <td><input form="@formId" name="alt" class="girdi mono" style="height:34px;width:110px" value="@k.AltSinir.ToString("0.###")" aria-label="Alt sınır" /></td>
+                                <td><input form="@formId" name="ust" class="girdi mono" style="height:34px;width:110px" value="@k.UstSinir.ToString("0.###")" aria-label="Üst sınır" /></td>
+                                <td>@k.AletTuru</td>
+                                <td class="sag">
+                                    <form id="@formId" method="post" asp-action="ToleransGuncelle" asp-route-id="@k.Id">
+                                        <button type="submit" class="buton ikincil kucuk">Kaydet</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}

@@ -1,0 +1,109 @@
+@model BakimModel
+@{
+    ViewData["Title"] = "Bakım";
+    var yetkili = User.RoldeMi(Roller.DepoBakim, Roller.Admin);
+    var geciken = Model.Makineler.Count(m => m.Durum.Seviye == BakimSeviye.Gecikti);
+    var yaklasan = Model.Makineler.Count(m => m.Durum.Seviye == BakimSeviye.Yaklasiyor);
+    var arizali = Model.Makineler.Count(m => m.Makine.Durum == MakineDurum.Arizali);
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Tesis › Bakım</div>
+        <h1 tabindex="-1">Makine bakım planı</h1>
+        <p>Bakım zamanı süre ya da işlem adedine göre belirlenir; hangisi önce dolarsa. SPC kayması görülen makineler için bakım önerilir.</p>
+    </div>
+</div>
+
+<section class="kpiler">
+    <div class="kpi"><span class="etiket">Makine</span><span class="deger" data-sayac="@Model.Makineler.Count">0</span></div>
+    <div class="kpi @(arizali > 0 ? "kritik" : "")"><span class="etiket">Arızalı</span><span class="deger" data-sayac="@arizali">0</span></div>
+    <div class="kpi @(geciken > 0 ? "kritik" : "")"><span class="etiket">Bakımı geciken</span><span class="deger" data-sayac="@geciken">0</span></div>
+    <div class="kpi"><span class="etiket">Bakımı yaklaşan</span><span class="deger renk-sari" data-sayac="@yaklasan">0</span></div>
+</section>
+
+@if (Model.SpcUyarilari.Count > 0)
+{
+    <div class="mesaj uyari">
+        @Ikon.Ciz("spc")
+        <span>
+            <strong>SPC bakım önerisi:</strong>
+            @foreach (var s in Model.SpcUyarilari)
+            {
+                <span>@s.Makine.Kod (@s.Karakteristik.Urun?.Kod @s.Karakteristik.Ad) ölçümlerinde kayma var; takım aşınması ve ayar kontrolü önerilir. </span>
+            }
+        </span>
+    </div>
+}
+
+<section class="kart">
+    <div class="tablo-kutu">
+        <table class="tablo genis-tablo">
+            <thead><tr><th>Makine</th><th>Durum</th><th>Son bakım</th><th>Süre</th><th>İşlem adedi</th><th>Plan</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var b in Model.Makineler)
+                {
+                    var m = b.Makine;
+                    var d = b.Durum;
+                    var sinif = Gorunum.BakimSinif(d.Seviye);
+                    <tr class="@(d.Seviye == BakimSeviye.Gecikti || m.Durum == MakineDurum.Arizali ? "vurgu" : "")">
+                        <td><strong class="mono">@m.Kod</strong><br /><small class="renk-soluk">@m.Ad</small></td>
+                        <td><span class="esnek"><span class="durum-isik @Gorunum.MakineSinif(m.Durum)" style="position:static"></span>@m.Durum</span></td>
+                        <td>@m.SonBakimTarihi.ToString("dd.MM.yyyy")<br /><small class="renk-soluk">@Gorunum.GecenSure(m.SonBakimTarihi)</small></td>
+                        <td>
+                            <div class="ilerleme">
+                                <div class="cubuk"><div class="dolu @(d.GunOrani >= 1 ? "kirmizi" : d.GunOrani >= .85 ? "sari" : "yesil")" style="--w:@Sayi.Css(Math.Min(100, d.GunOrani * 100))%"></div></div>
+                                <span class="metin">@((int)(DateTime.Now - m.SonBakimTarihi).TotalDays)/@m.BakimPeriyotGun gün</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="ilerleme">
+                                <div class="cubuk"><div class="dolu @(d.AdetOrani >= 1 ? "kirmizi" : d.AdetOrani >= .85 ? "sari" : "yesil")" style="--w:@Sayi.Css(Math.Min(100, d.AdetOrani * 100))%"></div></div>
+                                <span class="metin">@b.Adet.ToString("N0")/@m.BakimPeriyotAdet.ToString("N0")</span>
+                            </div>
+                        </td>
+                        <td><span class="rozet @sinif @(d.Seviye == BakimSeviye.Gecikti ? "nabizli" : "")">@Gorunum.BakimMetin(d.Seviye)</span></td>
+                        <td class="sag">
+                            @if (yetkili)
+                            {
+                                <details>
+                                    <summary class="buton ikincil kucuk">Bakım kaydet</summary>
+                                    <form method="post" asp-action="Kaydet" class="form-dikey kart" style="width:300px;text-align:left;margin-top:8px;animation:none">
+                                        <input type="hidden" name="makineId" value="@m.Id" />
+                                        <label class="alan">Tür
+                                            <select name="tur" class="girdi">
+                                                <option>Periyodik</option>
+                                                <option>Arıza onarımı</option>
+                                            </select>
+                                        </label>
+                                        <label class="alan">Açıklama
+                                            <input name="aciklama" class="girdi" placeholder="Yapılan işlemler" />
+                                        </label>
+                                        <label class="alan">Süre (dk)
+                                            <input name="sureDakika" class="girdi mono" type="number" min="0" value="90" />
+                                        </label>
+                                        <button type="submit" class="buton yesil">@Ikon.Ciz("tik", 16) Kaydet ve sayacı sıfırla</button>
+                                    </form>
+                                </details>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="kart">
+    <div class="kart-baslik"><h2>@Ikon.Ciz("saat") Son bakım kayıtları</h2></div>
+    <div class="zaman">
+        @foreach (var k in Model.SonKayitlar)
+        {
+            <div class="zaman-oge" style="--renk:@(k.Tur == "Periyodik" ? "var(--yesil)" : "var(--kirmizi)")">
+                <strong>@k.Makine?.Kod · @k.Tur</strong>
+                <small>@k.Tarih.ToString("dd.MM.yyyy HH:mm") · @k.Yapan · @k.SureDakika dk</small>
+                <div class="detay">@k.Aciklama</div>
+            </div>
+        }
+    </div>
+</section>

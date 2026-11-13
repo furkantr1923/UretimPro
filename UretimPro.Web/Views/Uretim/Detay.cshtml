@@ -1,0 +1,167 @@
+@model EmirDetayModel
+@{
+    var e = Model.Emir;
+    ViewData["Title"] = e.EmirNo;
+    var toplam = e.Parcalar.Count;
+    var tamam = e.Parcalar.Count(p => p.Durum == ParcaDurum.Tamamlandi);
+    var hurda = e.Parcalar.Count(p => p.Durum == ParcaDurum.Hurda);
+    var bloke = e.Parcalar.Count(p => p.Durum == ParcaDurum.Bloke);
+    var yonetici = User.RoldeMi(Roller.Admin, Roller.Yonetici);
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol"><a asp-action="Index">Üretim emirleri</a> › @e.EmirNo</div>
+        <h1 tabindex="-1" class="esnek">@e.EmirNo <span class="rozet @Gorunum.EmirSinif(e.Durum) @(e.Durum == EmirDurum.Bloke ? "nabizli" : "")">@e.Durum</span></h1>
+        <p>@e.Urun?.Ad · Lot <span class="mono">@e.LotNo</span> · Plan @e.PlanTarihi.ToString("dd.MM.yyyy")</p>
+    </div>
+    <div class="eylemler">
+        <a class="buton ikincil" asp-action="Etiketler" asp-route-id="@e.Id">@Ikon.Ciz("yazici", 16) QR etiketleri</a>
+        <a class="buton ikincil" asp-controller="Izlenebilirlik" asp-action="Lot" asp-route-lotNo="@e.LotNo">@Ikon.Ciz("agac", 16) Lot izlenebilirliği</a>
+        @if (yonetici && e.Durum == EmirDurum.Planlandi)
+        {
+            <form method="post" asp-action="Iptal" asp-route-id="@e.Id">
+                <button type="submit" class="buton ikincil">İptal et</button>
+            </form>
+        }
+    </div>
+</div>
+
+<section class="kpiler">
+    <div class="kpi"><span class="etiket">Planlanan</span><span class="deger" data-sayac="@e.Miktar">0</span><span class="alt renk-soluk">adet</span></div>
+    <div class="kpi"><span class="etiket">Tamamlanan</span><span class="deger renk-yesil" data-sayac="@tamam">0</span>
+        <div class="ilerleme"><div class="cubuk"><div class="dolu yesil" style="--w:@Gorunum.Yuzde(tamam, toplam)%"></div></div><span class="metin">%@Gorunum.Yuzde(tamam, toplam)</span></div></div>
+    <div class="kpi @(bloke > 0 ? "kritik" : "")"><span class="etiket">Bloke</span><span class="deger" data-sayac="@bloke">0</span><span class="alt renk-soluk">uygunsuzluk nedeniyle</span></div>
+    <div class="kpi"><span class="etiket">Hurda</span><span class="deger" data-sayac="@hurda">0</span><span class="alt renk-soluk">adet</span></div>
+</section>
+
+@if (e.Durum == EmirDurum.Planlandi && yonetici)
+{
+    <section class="kart">
+        <div class="kart-baslik">
+            <h2>@Ikon.Ciz("oynat") Üretimi başlat</h2>
+            <span class="rozet bakir">FIFO önerisi</span>
+        </div>
+        <p class="renk-soluk" style="margin-top:0">İhtiyaç: <strong class="mono">@Model.Ihtiyac.ToString("N1") kg</strong> @e.Urun?.Malzeme?.Ad. Sistem en eski lottan başlayarak öneriyor (ilk giren ilk çıkar). İstersen öncelikli lotu değiştirebilirsin.</p>
+        @if (Model.FifoEksik > 0)
+        {
+            <div class="mesaj hata">@Ikon.Ciz("depo") Stok yetersiz: @Model.FifoEksik.ToString("N1") kg eksik. Önce depoya hammadde girişi yapılmalı.</div>
+        }
+        else
+        {
+            <div class="tablo-kutu mt">
+                <table class="tablo">
+                    <thead><tr><th>Önerilen lot</th><th class="sag">Kullanılacak</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in Model.FifoPaylari)
+                        {
+                            <tr><td class="mono">@Model.LotNolari.GetValueOrDefault(p.LotId)</td><td class="sag mono">@p.Miktar.ToString("N1") kg</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <form method="post" asp-action="Baslat" asp-route-id="@e.Id" class="esnek mt">
+            <label class="alan" style="flex:1 1 280px">Öncelikli hammadde lotu
+                <select name="lotId" class="girdi">
+                    <option value="">Otomatik (FIFO)</option>
+                    @foreach (var l in Model.UygunLotlar)
+                    {
+                        <option value="@l.Id">@l.LotNo · @l.KalanMiktar.ToString("N0") kg · @l.GirisTarihi.ToString("dd.MM.yyyy")</option>
+                    }
+                </select>
+            </label>
+            <button type="submit" class="buton bakir" style="align-self:flex-end" disabled="@(Model.FifoEksik > 0 ? "disabled" : null)">@Ikon.Ciz("oynat", 16) Üretimi başlat</button>
+        </form>
+    </section>
+}
+
+<section class="kart">
+    <div class="kart-baslik"><h2>@Ikon.Ciz("istasyon") Rota ve istasyonlardaki parçalar</h2></div>
+    <div class="rota">
+        @for (var i = 0; i < Model.Adimlar.Count; i++)
+        {
+            var adim = Model.Adimlar[i];
+            var bekleyen = Model.AdimdaBekleyen.GetValueOrDefault(i);
+            var gecen = e.Parcalar.Count(p => p.TamamlananAdim > i);
+            <div class="rota-adim @(bekleyen > 0 ? "aktif" : gecen == toplam ? "tamam" : "")">
+                <span class="sira">ADIM @adim.Sira · @adim.Makine?.Kod</span>
+                <strong>@adim.Ad</strong>
+                <span class="adet">@gecen<small class="renk-soluk" style="font-size:13px">/@toplam</small></span>
+                <small class="renk-soluk">@bekleyen parça bu adımda sırada</small>
+            </div>
+        }
+    </div>
+</section>
+
+<div class="yan-yana">
+    <section class="kart genis">
+        <div class="kart-baslik">
+            <h2>@Ikon.Ciz("qr") Parçalar</h2>
+            <small class="renk-soluk">@toplam seri numarası</small>
+        </div>
+        <div class="tablo-kutu" style="max-height:460px;overflow:auto">
+            <table class="tablo">
+                <thead><tr><th>Seri no</th><th>Adım</th><th>Durum</th><th>Tamamlanma</th></tr></thead>
+                <tbody>
+                    @foreach (var p in e.Parcalar.OrderBy(x => x.SeriNo))
+                    {
+                        <tr class="@(p.Durum == ParcaDurum.Bloke ? "vurgu" : "")">
+                            <td><a class="mono" asp-controller="Izlenebilirlik" asp-action="Parca" asp-route-seriNo="@p.SeriNo">@p.SeriNo</a></td>
+                            <td class="mono">@p.TamamlananAdim/@Model.Adimlar.Count</td>
+                            <td><span class="rozet @Gorunum.ParcaSinif(p.Durum)">@p.Durum</span></td>
+                            <td>@(p.TamamlanmaTarihi?.ToString("dd.MM HH:mm") ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("depo") Kullanılan hammadde</h2></div>
+            @if (e.Tuketimler.Count == 0)
+            {
+                <p class="renk-soluk">Üretim başlayınca hammadde lotları buraya bağlanır.</p>
+            }
+            @foreach (var t in e.Tuketimler)
+            {
+                <div class="esnek arasi" style="padding:8px 0;border-bottom:1px solid var(--cizgi)">
+                    <a class="mono" asp-controller="Izlenebilirlik" asp-action="Hammadde" asp-route-lotNo="@t.HammaddeLotu?.LotNo">@t.HammaddeLotu?.LotNo</a>
+                    <strong class="mono">@t.Miktar.ToString("N1") kg</strong>
+                </div>
+            }
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("ncr") Uygunsuzluklar</h2></div>
+            @if (Model.Ncrler.Count == 0)
+            {
+                <p class="renk-soluk">Bu lotta uygunsuzluk yok.</p>
+            }
+            @foreach (var n in Model.Ncrler)
+            {
+                <a class="uyari-oge @Gorunum.NcrSinif(n.Durum)" asp-controller="Ncr" asp-action="Detay" asp-route-id="@n.Id">
+                    <span class="ikon">@Ikon.Ciz("ncr")</span>
+                    <span><strong>@n.NcrNo · @n.Durum</strong><span>@n.Tanim</span></span>
+                </a>
+            }
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("saat") Zaman çizelgesi</h2></div>
+            <div class="zaman">
+                <div class="zaman-oge" style="--renk:var(--soluk)"><strong>Oluşturuldu</strong><small>@e.OlusturmaTarihi.ToString("dd.MM.yyyy HH:mm")</small></div>
+                @if (e.BaslamaTarihi is DateTime bas)
+                {
+                    <div class="zaman-oge" style="--renk:var(--mavi)"><strong>Üretim başladı</strong><small>@bas.ToString("dd.MM.yyyy HH:mm")</small></div>
+                }
+                @if (e.TamamlanmaTarihi is DateTime bit)
+                {
+                    <div class="zaman-oge"><strong>Tamamlandı</strong><small>@bit.ToString("dd.MM.yyyy HH:mm")</small></div>
+                }
+            </div>
+        </section>
+    </div>
+</div>

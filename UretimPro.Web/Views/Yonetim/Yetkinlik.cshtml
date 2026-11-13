@@ -1,0 +1,73 @@
+@model YetkinlikModel
+@{
+    ViewData["Title"] = "Yetkinlik matrisi";
+    var simdi = DateTime.Now;
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Yönetim › Yetkinlik</div>
+        <h1 tabindex="-1">Operatör yetkinlik matrisi</h1>
+        <p>Geçerli sertifikası olmayan operatör o istasyonda işlem yapamaz. Hücreye tıklayarak sertifika ver veya yenile (1 yıl).</p>
+    </div>
+</div>
+
+<div class="lejant">
+    <span><i style="background:var(--yesil)"></i>Geçerli</span>
+    <span><i style="background:var(--sari)"></i>30 gün içinde dolacak</span>
+    <span><i style="background:var(--kirmizi)"></i>Süresi dolmuş</span>
+    <span><i style="background:var(--gri-acik);border:1px solid var(--cizgi)"></i>Yetkinlik yok</span>
+</div>
+
+<section class="kart">
+    <div class="tablo-kutu">
+        <table class="tablo matris genis-tablo">
+            <thead>
+                <tr>
+                    <th>Personel</th>
+                    @foreach (var m in Model.Makineler)
+                    {
+                        <th title="@m.Ad">@m.Kod</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var k in Model.Kullanicilar)
+                {
+                    <tr>
+                        <td><strong>@k.AdSoyad</strong><br /><small class="renk-soluk">@Roller.Ad(k.Rol)</small></td>
+                        @foreach (var m in Model.Makineler)
+                        {
+                            Model.Hucreler.TryGetValue((k.Id, m.Id), out var y);
+                            var kalan = y == null ? (double?)null : (y.GecerlilikBitis - simdi).TotalDays;
+                            var sinif = y == null ? "" : kalan < 0 ? "bitmis" : kalan <= 30 ? "yakin" : "var";
+                            var baslik = y == null ? $"{k.AdSoyad} · {m.Kod}: yetkinlik yok" : $"{k.AdSoyad} · {m.Kod}: {y.GecerlilikBitis:dd.MM.yyyy}";
+                            <td>
+                                <form method="post" asp-action="YetkinlikDegistir" style="display:inline">
+                                    <input type="hidden" name="kullaniciId" value="@k.Id" />
+                                    <input type="hidden" name="makineId" value="@m.Id" />
+                                    <input type="hidden" name="islem" value="@(y != null && kalan > 30 ? "kaldir" : "ver")" />
+                                    <button type="submit" class="matris-hucre @sinif" title="@baslik" aria-label="@baslik">
+                                        @if (y == null)
+                                        {
+                                            @Ikon.Ciz("arti", 14)
+                                        }
+                                        else if (kalan < 0)
+                                        {
+                                            @Ikon.Ciz("carpi", 14)
+                                        }
+                                        else
+                                        {
+                                            @Ikon.Ciz("tik", 14)
+                                        }
+                                    </button>
+                                </form>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="renk-soluk" style="margin:14px 0 0;font-size:13px">Geçerli bir hücreye tıklamak yetkinliği kaldırır; süresi dolmuş veya dolmak üzere olan hücreye tıklamak sertifikayı 1 yıl uzatır.</p>
+</section>

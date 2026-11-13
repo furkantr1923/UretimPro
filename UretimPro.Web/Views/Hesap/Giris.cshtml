@@ -1,0 +1,86 @@
+@model GirisModel
+@{
+    Layout = null;
+    var demolar = new[]
+    {
+        ("admin", "Admin", "Tüm yetkiler"),
+        ("yonetici", "Yönetici", "Planlama ve onay"),
+        ("kalite", "Kalite", "SPC, NCR, kalibrasyon"),
+        ("operator", "Operatör", "İstasyon ve QR okutma"),
+        ("depo", "Depo / Bakım", "Stok ve makine bakımı"),
+        ("burak", "Operatör (sınırlı)", "Yetkinlik engelini dene")
+    };
+}
+<!DOCTYPE html>
+<html lang="tr" data-tema="acik">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Giriş · ÜretimPro</title>
+    <script>try { var t = localStorage.getItem('tema'); if (t) document.documentElement.dataset.tema = t; } catch (e) { }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <div class="giris-sayfa">
+        <section class="giris-sol">
+            <div class="logo">
+                <span class="logo-ikon">@Ikon.Ciz("fabrika", 22)</span>
+                <span><strong>ÜretimPro</strong><span>Üretim İzlenebilirlik ve Kalite Yönetimi</span></span>
+            </div>
+
+            <div class="dikey" style="gap:18px;position:relative;z-index:1">
+                <h1>Her parçanın hikâyesi, <em>tek bir QR kodda.</em></h1>
+                <p>Hammaddeden sevkiyata kadar lot takibi, istasyon kayıtları, SPC ile erken uyarı ve uygunsuzluk yönetimi.</p>
+            </div>
+
+            <div class="giris-canli" aria-label="Canlı üretim">
+                <div><strong data-sayac="@Model.BugunUretilen">0</strong><span>Bugün üretilen parça</span></div>
+                <div><strong data-sayac="@Model.AktifEmir">0</strong><span>Aktif üretim emri</span></div>
+                <div><strong data-sayac="@Model.CalisanMakine">0</strong><span>Çalışan makine</span></div>
+            </div>
+        </section>
+
+        <section class="giris-sag">
+            <div class="giris-kutu">
+                <div>
+                    <h2>Personel girişi</h2>
+                    <p class="renk-soluk" style="margin:6px 0 0">Kullanıcı adınız ve şifrenizle oturum açın.</p>
+                </div>
+
+                @if (Model.Hata != null)
+                {
+                    <div class="mesaj hata" role="alert">@Ikon.Ciz("kilit")<span>@Model.Hata</span></div>
+                }
+
+                <form method="post" asp-action="Giris" class="form-dikey">
+                    <input type="hidden" asp-for="ReturnUrl" />
+                    <label class="alan">Kullanıcı adı
+                        <input class="girdi" asp-for="KullaniciAdi" autocomplete="username" autocapitalize="off" required />
+                    </label>
+                    <label class="alan">Şifre
+                        <input class="girdi" asp-for="Sifre" type="password" autocomplete="current-password" required />
+                    </label>
+                    <button type="submit" class="buton birincil tam" style="height:46px">Giriş yap @Ikon.Ciz("ok-sag", 16)</button>
+                </form>
+
+                <div class="dikey" style="gap:8px">
+                    <small class="renk-soluk">Demo hesapları · şifre: <code>@UretimPro.Data.OrnekVeri.DemoSifre</code> · tıklayınca doldurulur</small>
+                    <div class="demo-hesaplar">
+                        @foreach (var d in demolar)
+                        {
+                            <button type="button" data-demo-kullanici="@d.Item1" data-demo-sifre="@UretimPro.Data.OrnekVeri.DemoSifre">
+                                <strong>@d.Item2</strong><small>@d.Item3</small>
+                            </button>
+                        }
+                    </div>
+                    <small class="renk-soluk">5 hatalı denemede hesap 15 dakika kilitlenir.</small>
+                </div>
+            </div>
+        </section>
+    </div>
+    <script src="~/js/efekt.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+</body>
+</html>

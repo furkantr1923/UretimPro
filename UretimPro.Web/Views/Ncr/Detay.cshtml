@@ -1,0 +1,225 @@
+@model NcrDetayModel
+@{
+    var n = Model.Ncr;
+    ViewData["Title"] = n.NcrNo;
+    var kararYetkisi = User.RoldeMi(Roller.Kalite, Roller.Yonetici, Roller.Admin);
+    var kapatmaYetkisi = User.RoldeMi(Roller.Kalite, Roller.Admin);
+    var onayYetkisi = User.RoldeMi(Roller.Yonetici, Roller.Admin);
+    var hazirlayan = Model.Imzalar.FirstOrDefault(i => i.Imza.Rol == "Hazırlayan");
+    var onaylayan = Model.Imzalar.FirstOrDefault(i => i.Imza.Rol == "Onaylayan");
+    var kararAciklama = new Dictionary<string, string>
+    {
+        [NcrKarar.Hurda] = "Parça hurdaya ayrılır, stoktan düşülür.",
+        [NcrKarar.YenidenIsleme] = "Parça aynı adıma geri döner ve yeniden ölçülür.",
+        [NcrKarar.SartliKabul] = "Sapma kabul edilir, parça rotaya devam eder."
+    };
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol"><a asp-action="Index">Uygunsuzluklar</a> › @n.NcrNo</div>
+        <h1 tabindex="-1" class="esnek">@n.NcrNo <span class="rozet @Gorunum.NcrSinif(n.Durum) @(n.Durum == NcrDurum.Acik ? "nabizli" : "")">@n.Durum</span></h1>
+        <p>@n.UretimEmri?.Urun?.Ad · Lot <a class="mono" asp-controller="Izlenebilirlik" asp-action="Lot" asp-route-lotNo="@n.UretimEmri?.LotNo">@n.UretimEmri?.LotNo</a>
+            @if (n.Parca != null)
+            {
+                <text> · Parça <a class="mono" asp-controller="Izlenebilirlik" asp-action="Parca" asp-route-seriNo="@n.Parca.SeriNo">@n.Parca.SeriNo</a></text>
+            }
+        </p>
+    </div>
+    <div class="eylemler">
+        <a class="buton ikincil" asp-controller="Rapor" asp-action="NcrPdf" asp-route-id="@n.Id">@Ikon.Ciz("pdf", 16) PDF rapor</a>
+    </div>
+</div>
+
+<div class="yan-yana">
+    <div class="genis dikey" style="gap:20px">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("ncr") Uygunsuzluk tanımı</h2><span class="rozet bakir">@n.Kaynak</span></div>
+            <p style="margin:0;font-size:16px">@n.Tanim</p>
+            <div class="sonuc-bilgi">
+                <span>Açan: <strong>@n.AcanKisi</strong></span>
+                <span>Açılış: <strong>@n.AcilisTarihi.ToString("dd.MM.yyyy HH:mm")</strong></span>
+                @if (n.KararVeren != null)
+                {
+                    <span>Karar veren: <strong>@n.KararVeren</strong></span>
+                }
+            </div>
+        </section>
+
+        @if (n.Durum == NcrDurum.Acik && kararYetkisi)
+        {
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("kalkan") Karar ver</h2><small class="renk-soluk">Lot karar verilene kadar bloke kalır</small></div>
+                <div class="izgara izgara-3">
+                    @foreach (var k in NcrKarar.Tumu)
+                    {
+                        <form method="post" asp-action="Karar" asp-route-id="@n.Id" class="kart" style="box-shadow:none;display:flex;flex-direction:column;gap:10px">
+                            <input type="hidden" name="karar" value="@k" />
+                            <strong>@k</strong>
+                            <small class="renk-soluk">@kararAciklama[k]</small>
+                            <button type="submit" class="buton @(k == NcrKarar.Hurda ? "tehlike" : k == NcrKarar.YenidenIsleme ? "birincil" : "bakir")">@k kararını ver</button>
+                        </form>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (n.Durum == NcrDurum.KararVerildi && kapatmaYetkisi)
+        {
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("imza") Düzeltici faaliyet ve imza</h2><span class="rozet sari">1. imza · Hazırlayan</span></div>
+                <form method="post" asp-action="Kapat" asp-route-id="@n.Id" class="form-dikey">
+                    <label class="alan">Kök neden ve düzeltici faaliyet
+                        <textarea name="duzelticiFaaliyet" class="girdi" required minlength="10" placeholder="Örn. CNC-3 takım ofseti güncellendi, ilk parça onayı vardiya başına zorunlu hale getirildi."></textarea>
+                    </label>
+                    <div class="imza-alani">
+                        <div class="esnek arasi"><span>Elektronik imza</span><button type="button" class="buton ikincil kucuk" data-imza-temizle>Temizle</button></div>
+                        <canvas data-imza class="imza-tuval" aria-label="İmza alanı: fare, kalem veya parmakla imzalayın"></canvas>
+                        <small class="renk-soluk">@User.AdSoyad() olarak imzalıyorsunuz. İmza; NCR içeriği ve zaman ile birlikte SHA-256 ile mühürlenir.</small>
+                    </div>
+                    <input type="hidden" name="imza" />
+                    <label class="alan">Şifrenizi yeniden girin
+                        <input name="sifre" type="password" class="girdi" autocomplete="current-password" required style="max-width:280px" />
+                    </label>
+                    <button type="submit" class="buton yesil" style="width:fit-content">@Ikon.Ciz("imza", 16) İmzala ve onaya gönder</button>
+                </form>
+            </section>
+        }
+
+        @if (n.Durum == NcrDurum.OnayBekliyor)
+        {
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("kalkan") Yönetici onayı</h2><span class="rozet mavi nabizli">2. imza · Onaylayan</span></div>
+                <div class="mesaj bilgi" style="margin-bottom:14px">@Ikon.Ciz("bilgi")<span><strong>Düzeltici faaliyet:</strong> @n.DuzelticiFaaliyet</span></div>
+                @if (onayYetkisi && hazirlayan?.Imza.KullaniciId != User.KullaniciId())
+                {
+                    <form method="post" asp-action="Onayla" asp-route-id="@n.Id" class="form-dikey">
+                        <div class="imza-alani">
+                            <div class="esnek arasi"><span>Elektronik imza</span><button type="button" class="buton ikincil kucuk" data-imza-temizle>Temizle</button></div>
+                            <canvas data-imza class="imza-tuval" aria-label="İmza alanı"></canvas>
+                            <small class="renk-soluk">@User.AdSoyad() olarak onaylıyorsunuz. Dört göz ilkesi: hazırlayan kişi onaylayamaz.</small>
+                        </div>
+                        <input type="hidden" name="imza" />
+                        <label class="alan">Şifrenizi yeniden girin
+                            <input name="sifre" type="password" class="girdi" autocomplete="current-password" required style="max-width:280px" />
+                        </label>
+                        <button type="submit" class="buton bakir" style="width:fit-content">@Ikon.Ciz("tik", 16) Onayla, imzala ve kapat</button>
+                    </form>
+                }
+                else if (onayYetkisi)
+                {
+                    <p class="renk-soluk" style="margin:0">Bu NCR'ı siz hazırladınız. Dört göz ilkesi gereği başka bir yönetici onaylamalı.</p>
+                }
+                else
+                {
+                    <p class="renk-soluk" style="margin:0">Yönetici onayı bekleniyor. Onaylandığında NCR kapanır ve bildirim gönderilir.</p>
+                }
+            </section>
+        }
+
+        @if (n.Durum == NcrDurum.Kapali)
+        {
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("tik") Kapanış</h2><span class="rozet yesil">@n.Karar</span></div>
+                <p style="margin:0">@n.DuzelticiFaaliyet</p>
+                <small class="renk-soluk">Kapanış: @n.KapanisTarihi?.ToString("dd.MM.yyyy HH:mm")</small>
+            </section>
+        }
+
+        @if (Model.Imzalar.Count > 0)
+        {
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("imza") Elektronik imzalar</h2><small class="renk-soluk">Değiştirilemez · SHA-256</small></div>
+                <div class="imzalar">
+                    @foreach (var i in Model.Imzalar)
+                    {
+                        <div class="imza-kart @(i.Gecerli ? "" : "gecersiz")">
+                            <svg viewBox="0 0 400 140" class="imza-svg" aria-label="@i.Imza.AdSoyad imzası"><path d="@i.Imza.ImzaYolu" /></svg>
+                            <div class="esnek arasi">
+                                <span><strong>@i.Imza.AdSoyad</strong><br /><small class="renk-soluk">@i.Imza.Rol · @i.Imza.Zaman.ToString("dd.MM.yyyy HH:mm:ss")</small></span>
+                                @if (i.Gecerli)
+                                {
+                                    <span class="rozet yesil">@Ikon.Ciz("tik", 12) Doğrulandı</span>
+                                }
+                                else
+                                {
+                                    <span class="rozet kirmizi">Geçersiz: belge değişmiş</span>
+                                }
+                            </div>
+                            <code class="ozet" title="@i.Imza.Ozet">SHA-256 @(i.Imza.Ozet.Substring(0, 16))…</code>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (Model.Olcumler.Count > 0)
+        {
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("spc") Parçanın ölçümleri</h2></div>
+                <div class="tablo-kutu">
+                    <table class="tablo">
+                        <thead><tr><th>Zaman</th><th>Karakteristik</th><th class="sag">Değer</th><th>Tolerans</th><th>Alet</th><th>Sonuç</th></tr></thead>
+                        <tbody>
+                            @foreach (var o in Model.Olcumler)
+                            {
+                                <tr class="@(o.Uygun ? "" : "vurgu")">
+                                    <td>@o.Zaman.ToString("dd.MM HH:mm")</td>
+                                    <td>@o.Karakteristik?.Ad</td>
+                                    <td class="sag mono"><strong>@o.Deger.ToString("0.000")</strong></td>
+                                    <td class="mono">@o.Karakteristik?.AltSinir.ToString("0.###") – @o.Karakteristik?.UstSinir.ToString("0.###")</td>
+                                    <td class="mono">@o.OlcumAleti?.Kod</td>
+                                    <td><span class="rozet @(o.Uygun ? "yesil" : "kirmizi")">@(o.Uygun ? "Uygun" : "Tolerans dışı")</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    </div>
+
+    <aside class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("saat") Süreç</h2></div>
+            <div class="zaman">
+                <div class="zaman-oge" style="--renk:var(--kirmizi)"><strong>Açıldı</strong><small>@n.AcilisTarihi.ToString("dd.MM.yyyy HH:mm") · @n.AcanKisi</small></div>
+                @if (n.KararTarihi is DateTime kt)
+                {
+                    <div class="zaman-oge" style="--renk:var(--sari)"><strong>Karar: @n.Karar</strong><small>@kt.ToString("dd.MM.yyyy HH:mm") · @n.KararVeren</small></div>
+                }
+                @if (hazirlayan != null)
+                {
+                    <div class="zaman-oge" style="--renk:var(--mavi)"><strong>Hazırlayan imzası</strong><small>@hazirlayan.Imza.Zaman.ToString("dd.MM.yyyy HH:mm") · @hazirlayan.Imza.AdSoyad</small></div>
+                }
+                @if (onaylayan != null)
+                {
+                    <div class="zaman-oge" style="--renk:var(--bakir)"><strong>Yönetici onayı</strong><small>@onaylayan.Imza.Zaman.ToString("dd.MM.yyyy HH:mm") · @onaylayan.Imza.AdSoyad</small></div>
+                }
+                @if (n.KapanisTarihi is DateTime kp)
+                {
+                    <div class="zaman-oge"><strong>Kapatıldı</strong><small>@kp.ToString("dd.MM.yyyy HH:mm")</small></div>
+                }
+            </div>
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("audit") Değişiklik kaydı</h2></div>
+            @if (Model.Gecmis.Count == 0)
+            {
+                <p class="renk-soluk" style="margin:0">Bu NCR üzerinde henüz kullanıcı değişikliği yok.</p>
+            }
+            @foreach (var a in Model.Gecmis)
+            {
+                <div style="padding:8px 0;border-bottom:1px solid var(--cizgi);font-size:13px">
+                    <strong>@a.KullaniciAdi</strong> · @a.Islem<br />
+                    <small class="renk-soluk">@a.Zaman.ToString("dd.MM.yyyy HH:mm")</small>
+                </div>
+            }
+        </section>
+    </aside>
+</div>
+
+@section Scripts {
+    <script src="~/js/imza.js" asp-append-version="true"></script>
+}

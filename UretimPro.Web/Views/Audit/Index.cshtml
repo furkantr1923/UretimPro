@@ -1,0 +1,79 @@
+@model AuditModel
+@{
+    ViewData["Title"] = "Audit log";
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Yönetim › Audit log</div>
+        <h1 tabindex="-1">Audit log</h1>
+        <p>Kim, neyi, ne zaman değiştirdi. Kayıtlar otomatik tutulur; değiştirilemez ve silinemez.</p>
+    </div>
+    <form method="get" class="eylemler">
+        <a class="buton ikincil" asp-action="Excel" asp-route-kullanici="@Model.Kullanici" asp-route-tablo="@Model.Tablo" style="align-self:flex-end">@Ikon.Ciz("excel", 16) Excel'e aktar</a>
+        <label class="alan">Kullanıcı
+            <select name="kullanici" class="girdi" onchange="this.form.submit()">
+                <option value="">Tümü</option>
+                @foreach (var k in Model.KullaniciAdlari)
+                {
+                    <option value="@k" selected="@(k == Model.Kullanici ? "selected" : null)">@k</option>
+                }
+            </select>
+        </label>
+        <label class="alan">Kayıt türü
+            <select name="tablo" class="girdi" onchange="this.form.submit()">
+                <option value="">Tümü</option>
+                @foreach (var t in Model.Tablolar)
+                {
+                    <option value="@t" selected="@(t == Model.Tablo ? "selected" : null)">@t</option>
+                }
+            </select>
+        </label>
+    </form>
+</div>
+
+<section class="kart">
+    @if (Model.Kayitlar.Count == 0)
+    {
+        <div class="bos"><div class="ikon">@Ikon.Ciz("audit", 36)</div>Kayıt yok.</div>
+    }
+    else
+    {
+        <div class="tablo-kutu">
+            <table class="tablo genis-tablo">
+                <thead><tr><th>Zaman</th><th>Kullanıcı</th><th>İşlem</th><th>Kayıt</th><th>Değişiklik (eski → yeni)</th></tr></thead>
+                <tbody>
+                    @foreach (var s in Model.Kayitlar)
+                    {
+                        var a = s.Kayit;
+                        var sinif = a.Islem == "Silme" ? "kirmizi" : a.Islem == "Ekleme" ? "yesil" : "mavi";
+                        <tr>
+                            <td>@a.Zaman.ToString("dd.MM.yyyy HH:mm:ss")</td>
+                            <td><strong class="mono">@a.KullaniciAdi</strong></td>
+                            <td><span class="rozet @sinif">@a.Islem</span></td>
+                            <td><span class="mono">@a.Tablo</span> <small class="renk-soluk">#@a.KayitId</small></td>
+                            <td>
+                                @foreach (var d in s.Degisiklikler.Take(6))
+                                {
+                                    <div style="font-size:13px">
+                                        <span class="renk-soluk">@d.Alan:</span>
+                                        @if (d.Eski != null)
+                                        {
+                                            <span class="mono" style="text-decoration:line-through;color:var(--kirmizi)">@d.Eski</span>
+                                            <text> → </text>
+                                        }
+                                        <span class="mono renk-yesil">@(d.Yeni ?? "—")</span>
+                                    </div>
+                                }
+                                @if (s.Degisiklikler.Count > 6)
+                                {
+                                    <small class="renk-soluk">+@(s.Degisiklikler.Count - 6) alan daha</small>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

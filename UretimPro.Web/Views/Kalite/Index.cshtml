@@ -1,0 +1,142 @@
+@using System.Text.Json
+@model SpcModel
+@{
+    ViewData["Title"] = "SPC ve kontrol grafiği";
+    var k = Model.Secili;
+    var s = Model.Sonuc;
+    string? spcJson = null;
+    if (k != null && s != null)
+    {
+        spcJson = JsonSerializer.Serialize(new
+        {
+            degerler = Model.Olcumler.Select(o => o.Deger),
+            etiketler = Model.Olcumler.Select(o => $"{o.Parca?.SeriNo} · {o.Zaman:dd.MM HH:mm}"),
+            ust = k.UstSinir,
+            alt = k.AltSinir,
+            uks = s.UstKontrolSiniri,
+            aks = s.AltKontrolSiniri,
+            ort = s.Ortalama,
+            sigma = s.Sigma,
+            birim = k.Birim,
+            ihlaller = s.Ihlaller.Select(i => i.Indeks).Distinct()
+        });
+    }
+    var sonIhlaller = s?.Ihlaller.Where(i => i.Indeks >= Model.Olcumler.Count - 5).GroupBy(i => i.Kural).Select(g => g.First()).ToList() ?? new();
+    var cpkSinif = s?.Cpk is double c ? (c >= 1.33 ? "renk-yesil" : c >= 1 ? "renk-sari" : "renk-kirmizi") : "";
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Kalite › SPC</div>
+        <h1 tabindex="-1">İstatistiksel proses kontrolü</h1>
+        <p>Western Electric kuralları ile tolerans dışına çıkmadan önce kaymayı yakalar.</p>
+    </div>
+    <form method="get" class="eylemler">
+        <label class="alan">Karakteristik
+            <select name="karakteristikId" class="girdi" onchange="this.form.submit()">
+                @foreach (var x in Model.Karakteristikler)
+                {
+                    <option value="@x.Id" selected="@(x.Id == k?.Id ? "selected" : null)">@x.Urun?.Kod · @x.Ad (@x.RotaAdimi?.Makine?.Kod)</option>
+                }
+            </select>
+        </label>
+    </form>
+</div>
+
+@if (k == null || s == null)
+{
+    <div class="kart bos"><div class="ikon">@Ikon.Ciz("spc", 36)</div>Bu karakteristik için yeterli ölçüm yok.</div>
+}
+else
+{
+    if (sonIhlaller.Count > 0)
+    {
+        <div class="mesaj uyari" role="alert">
+            @Ikon.Ciz("ncr")
+            <span>
+                <strong>Erken uyarı: süreç kayıyor (@Model.Makine?.Kod).</strong>
+                @(string.Join(" · ", sonIhlaller.Select(i => "Kural " + i.Kural + ": " + i.Aciklama))).
+                Ölçümler henüz tolerans içinde olabilir; makine ayarını ve takım aşınmasını kontrol edin.
+            </span>
+            @if (User.RoldeMi(Roller.Kalite, Roller.Admin, Roller.Yonetici, Roller.DepoBakim))
+            {
+                <a class="buton ikincil kucuk" asp-controller="Bakim" asp-action="Index">Bakım planı</a>
+            }
+        </div>
+    }
+
+    <section class="kpiler">
+        <div class="kpi"><span class="etiket">Ortalama (X̄)</span><span class="deger" style="font-size:26px">@s.Ortalama.ToString("0.0000")</span><span class="alt renk-soluk">nominal @k.Nominal.ToString("0.###") @k.Birim</span></div>
+        <div class="kpi"><span class="etiket">Standart sapma (σ)</span><span class="deger" style="font-size:26px">@s.Sigma.ToString("0.0000")</span><span class="alt renk-soluk">son @Model.Olcumler.Count ölçüm</span></div>
+        <div class="kpi @(s.Cpk < 1 ? "kritik" : "")"><span class="etiket">Proses yeterliliği (Cpk)</span><span class="deger @cpkSinif" style="font-size:26px">@(s.Cpk?.ToString("0.00") ?? "—")</span><span class="alt renk-soluk">hedef ≥ 1,33</span></div>
+        <div class="kpi"><span class="etiket">Tolerans</span><span class="deger" style="font-size:22px">@k.AltSinir.ToString("0.###") – @k.UstSinir.ToString("0.###")</span><span class="alt renk-soluk">@Model.Uygunsuz tolerans dışı ölçüm</span></div>
+    </section>
+
+    <section class="kart">
+        <div class="kart-baslik">
+            <h2>@Ikon.Ciz("spc") X̄ kontrol grafiği · @k.Urun?.Ad · @k.Ad · @Model.Makine?.Kod</h2>
+            <small class="renk-soluk">Noktanın üzerine gel: seri no ve değer</small>
+        </div>
+        <div class="grafik" data-grafik="spc" data-veri="@spcJson"></div>
+        <div class="lejant">
+            <span><i style="background:var(--kirmizi)"></i>Tolerans sınırları (ÜTS / ATS)</span>
+            <span><i style="background:var(--sari)"></i>Kontrol sınırları ±3σ (ÜKS / AKS)</span>
+            <span><i style="background:var(--yesil);opacity:.4"></i>±1σ / ±2σ bölgeleri</span>
+            <span><i style="background:var(--bakir)"></i>Kural ihlali</span>
+        </div>
+    </section>
+
+    <div class="yan-yana">
+        <section class="kart genis">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("audit") Son ölçümler</h2></div>
+            <div class="tablo-kutu" style="max-height:420px;overflow:auto">
+                <table class="tablo">
+                    <thead><tr><th>Zaman</th><th>Seri no</th><th class="sag">Değer</th><th>Alet</th><th>Ölçen</th><th>Sonuç</th></tr></thead>
+                    <tbody>
+                        @foreach (var o in Model.Olcumler.AsEnumerable().Reverse())
+                        {
+                            <tr class="@(o.Uygun ? "" : "vurgu")">
+                                <td>@o.Zaman.ToString("dd.MM HH:mm")</td>
+                                <td><a class="mono" asp-controller="Izlenebilirlik" asp-action="Parca" asp-route-seriNo="@o.Parca?.SeriNo">@o.Parca?.SeriNo</a></td>
+                                <td class="sag mono">@o.Deger.ToString("0.000")</td>
+                                <td class="mono">@o.OlcumAleti?.Kod</td>
+                                <td>@o.Kullanici?.AdSoyad</td>
+                                <td><span class="rozet @(o.Uygun ? "yesil" : "kirmizi")">@(o.Uygun ? "Uygun" : "Tolerans dışı")</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside class="dar">
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("kalkan") Tüm karakteristikler</h2></div>
+                <div class="dikey" style="gap:6px">
+                    @foreach (var o in Model.Ozetler)
+                    {
+                        var ihlalVar = o.Sonuc.Ihlaller.Any(i => i.Indeks >= o.Degerler.Count - 3);
+                        <a class="uyari-oge @(ihlalVar ? "sari" : "mavi")" asp-action="Index" asp-route-karakteristikId="@o.Karakteristik.Id" asp-route-makineId="@o.Makine.Id"
+                           style="@(o.Karakteristik.Id == k.Id ? "outline:2px solid var(--bakir)" : "")">
+                            <span class="ikon">@Ikon.Ciz(ihlalVar ? "ncr" : "tik", 18)</span>
+                            <span>
+                                <strong>@o.Karakteristik.Urun?.Kod · @o.Karakteristik.Ad</strong>
+                                <span>@o.Makine.Kod · Cpk @(o.Sonuc.Cpk?.ToString("0.00") ?? "—")</span>
+                            </span>
+                        </a>
+                    }
+                </div>
+            </section>
+
+            <section class="kart">
+                <div class="kart-baslik"><h2>@Ikon.Ciz("bilgi") Kurallar</h2></div>
+                <div class="dikey" style="font-size:13px">
+                    @foreach (var kural in SpcHesaplayici.KuralAdlari)
+                    {
+                        <div><strong>Kural @kural.Key:</strong> @kural.Value</div>
+                    }
+                </div>
+            </section>
+        </aside>
+    </div>
+}

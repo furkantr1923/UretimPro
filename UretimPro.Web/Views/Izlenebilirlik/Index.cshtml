@@ -1,0 +1,45 @@
+@{
+    ViewData["Title"] = "İzlenebilirlik";
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <h1 tabindex="-1">İzlenebilirlik</h1>
+        <p>Seri no, üretim lotu, emir no, hammadde lotu ya da NCR numarası ile tüm geçmişe ulaş.</p>
+    </div>
+</div>
+
+<section class="okutma" style="max-width:900px">
+    <div class="tarama-cizgi" aria-hidden="true"></div>
+    <form method="get" class="dikey">
+        <label for="izAra">@Ikon.Ciz("ara", 16) Ne arıyorsun?</label>
+        <div class="okutma-satir">
+            <input id="izAra" name="q" value="@ViewBag.Arama" placeholder="FL120-00681" autofocus spellcheck="false" />
+            <button type="submit" class="buton bakir">@Ikon.Ciz("ara", 18) Sorgula</button>
+        </div>
+    </form>
+    <div class="ornek-seri">
+        <span>Örnek biçimler:</span>
+        <span class="mono">FL120-00681</span> · <span class="mono">UL-2611-07</span> · <span class="mono">UE-0457</span> · <span class="mono">HM-2026-114</span> · <span class="mono">NCR-0031</span>
+    </div>
+</section>
+
+@if (ViewBag.Bulunamadi == true)
+{
+    <div class="mesaj hata" style="max-width:900px">@Ikon.Ciz("ara")<span>"@ViewBag.Arama" için kayıt bulunamadı. Biçimi kontrol edip tekrar dene.</span></div>
+}
+
+<div class="izgara izgara-3" style="max-width:900px">
+    <div class="kart">
+        <strong>@Ikon.Ciz("qr", 16) Seri no</strong>
+        <p class="renk-soluk" style="margin:6px 0 0">Parçanın geçtiği her istasyon, operatör, ölçüm ve kullanılan hammadde.</p>
+    </div>
+    <div class="kart">
+        <strong>@Ikon.Ciz("uretim", 16) Üretim lotu</strong>
+        <p class="renk-soluk" style="margin:6px 0 0">Lottaki tüm parçalar, durumları, hammadde kaynakları ve uygunsuzluklar.</p>
+    </div>
+    <div class="kart">
+        <strong>@Ikon.Ciz("depo", 16) Hammadde lotu</strong>
+        <p class="renk-soluk" style="margin:6px 0 0">Geri çağırma senaryosu: bu çelik hangi lotlarda kullanıldı?</p>
+    </div>
+</div>

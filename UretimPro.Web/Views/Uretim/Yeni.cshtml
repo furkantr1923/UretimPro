@@ -1,0 +1,97 @@
+@using System.Text.Json
+@model YeniEmirModel
+@{
+    ViewData["Title"] = "Yeni üretim emri";
+    var urunBilgi = JsonSerializer.Serialize(Model.Urunler.ToDictionary(
+        u => u.Id.ToString(),
+        u => new
+        {
+            tuketim = u.BirimTuketim,
+            malzeme = u.Malzeme?.Ad ?? "",
+            stok = Model.MalzemeStoklari.GetValueOrDefault(u.MalzemeId),
+            rota = string.Join(" → ", u.RotaAdimlari.OrderBy(a => a.Sira).Select(a => a.Ad)),
+            sonSeri = Numara.SeriNo(u.Kod, u.SonSeriNo + 1)
+        }));
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol"><a asp-action="Index">Üretim emirleri</a> › Yeni</div>
+        <h1 tabindex="-1">Yeni üretim emri</h1>
+        <p>Emir oluşturulunca her parçaya otomatik seri numarası atanır ve QR etiketleri hazır olur.</p>
+    </div>
+</div>
+
+<div class="yan-yana">
+    <section class="kart genis">
+        <form method="post" asp-action="Yeni" class="form-dikey">
+            <div asp-validation-summary="All" class="hata-metin"></div>
+            <label class="alan">Ürün
+                <select asp-for="UrunId" class="girdi" id="urunSec">
+                    @foreach (var u in Model.Urunler)
+                    {
+                        <option value="@u.Id">@u.Kod · @u.Ad</option>
+                    }
+                </select>
+            </label>
+            <div class="form-satir">
+                <label class="alan">Miktar (adet)
+                    <input asp-for="Miktar" class="girdi mono" type="number" min="1" max="5000" id="miktar" />
+                </label>
+                <label class="alan">Plan tarihi
+                    <input asp-for="PlanTarihi" class="girdi" type="date" />
+                </label>
+            </div>
+            <div class="esnek">
+                <button type="submit" class="buton bakir">@Ikon.Ciz("arti", 16) Emri oluştur</button>
+                <a class="buton ikincil" asp-action="Index">Vazgeç</a>
+            </div>
+        </form>
+    </section>
+
+    <aside class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("bilgi") Önizleme</h2></div>
+            <div class="dikey" id="onizleme" data-urunler="@urunBilgi">
+                <div class="esnek arasi"><span class="renk-soluk">Rota</span><strong id="onRota" style="text-align:right">—</strong></div>
+                <div class="esnek arasi"><span class="renk-soluk">İlk seri no</span><strong id="onSeri" class="mono">—</strong></div>
+                <div class="esnek arasi"><span class="renk-soluk">Hammadde ihtiyacı</span><strong id="onIhtiyac" class="mono">—</strong></div>
+                <div class="esnek arasi"><span class="renk-soluk">Depodaki stok</span><strong id="onStok" class="mono">—</strong></div>
+                <div class="ilerleme"><div class="cubuk"><div class="dolu" id="onCubuk" style="--w:0%"></div></div><span class="metin" id="onYuzde">%0</span></div>
+                <small class="renk-soluk" id="onNot"></small>
+            </div>
+        </section>
+    </aside>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            const kap = document.getElementById('onizleme');
+            const urunler = JSON.parse(kap.dataset.urunler);
+            const sec = document.getElementById('urunSec');
+            const miktar = document.getElementById('miktar');
+            const fmt = function (n) { return n.toLocaleString('tr-TR', { maximumFractionDigits: 1 }); };
+            function guncelle() {
+                const u = urunler[sec.value];
+                if (!u) return;
+                const ihtiyac = (parseInt(miktar.value, 10) || 0) * u.tuketim;
+                const yuzde = u.stok > 0 ? Math.min(100, ihtiyac / u.stok * 100) : 100;
+                document.getElementById('onRota').textContent = u.rota;
+                document.getElementById('onSeri').textContent = u.sonSeri;
+                document.getElementById('onIhtiyac').textContent = fmt(ihtiyac) + ' kg ' + u.malzeme;
+                document.getElementById('onStok').textContent = fmt(u.stok) + ' kg';
+                const cubuk = document.getElementById('onCubuk');
+                cubuk.style.setProperty('--w', yuzde + '%');
+                cubuk.className = 'dolu ' + (ihtiyac > u.stok ? 'kirmizi' : yuzde > 70 ? 'sari' : 'yesil');
+                document.getElementById('onYuzde').textContent = '%' + Math.round(yuzde);
+                document.getElementById('onNot').textContent = ihtiyac > u.stok
+                    ? 'Stok yetersiz: emir oluşturulabilir ama başlatmadan önce hammadde girişi gerekir.'
+                    : 'Stok bu emir için yeterli. Başlatınca FIFO ile en eski lot kullanılır.';
+            }
+            sec.addEventListener('change', guncelle);
+            miktar.addEventListener('input', guncelle);
+            guncelle();
+        })();
+    </script>
+}

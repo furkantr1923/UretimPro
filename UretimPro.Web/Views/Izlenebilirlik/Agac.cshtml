@@ -1,0 +1,58 @@
+@model AgacModel
+@{
+    var k = Model.Kok;
+    var hammadde = Model.Tur == "hammadde";
+    ViewData["Title"] = (hammadde ? "Geri çağırma · " : "Soy ağacı · ") + k.Baslik;
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol"><a asp-action="Index">İzlenebilirlik</a> › @(hammadde ? "Geri çağırma ağacı" : "Lot soy ağacı")</div>
+        <h1 tabindex="-1" class="esnek">@Ikon.Ciz("agac", 24) <span class="mono">@k.Baslik</span></h1>
+        <p>@k.Alt</p>
+    </div>
+    <div class="eylemler">
+        <form method="get" class="esnek" role="search">
+            <input name="@(hammadde ? "hammadde" : "lot")" class="girdi mono" style="width:200px" placeholder="@(hammadde ? "HM-2026-101" : "UL-2611-05")" aria-label="Lot numarası" />
+            <button type="submit" class="buton ikincil">@Ikon.Ciz("ara", 16) Aç</button>
+        </form>
+        <button type="button" class="buton ikincil" data-agac-hepsi>@Ikon.Ciz("agac", 16) Tümünü aç</button>
+        @if (!hammadde)
+        {
+            <a class="buton ikincil" asp-controller="Rapor" asp-action="LotSertifika" asp-route-lotNo="@k.Baslik">@Ikon.Ciz("pdf", 16) Sertifika</a>
+        }
+    </div>
+</div>
+
+@if (hammadde)
+{
+    <div class="mesaj bilgi">
+        @Ikon.Ciz("bilgi")
+        <span><strong>Geri çağırma:</strong> Bu hammadde lotundan üretilen @k.Cocuklar.Count üretim lotu aşağıda. Bir lota tıklayarak onun tam soy ağacını açabilirsiniz.</span>
+    </div>
+}
+else
+{
+    <div class="mesaj bilgi">
+        @Ikon.Ciz("bilgi")
+        <span>Hammaddeden tedarikçiye, rota adımlarından operatöre, parçalardan uygunsuzluklara kadar lotun tüm geçmişi. Dalları açıp kapatabilirsiniz.</span>
+    </div>
+}
+
+<section class="kart">
+    <div class="agac" id="agac">
+        <ul>
+            <partial name="_AgacDugum" model="k" />
+        </ul>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('[data-agac-hepsi]')) return;
+            document.querySelectorAll('#agac li.kapali').forEach(function (li) { li.classList.remove('kapali'); });
+            document.querySelectorAll('#agac [data-dal]').forEach(function (b) { b.setAttribute('aria-expanded', 'true'); });
+        });
+    </script>
+}

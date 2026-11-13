@@ -1,0 +1,215 @@
+@using System.Text.Json
+@model PanelModel
+@{
+    ViewData["Title"] = "Kontrol merkezi";
+    var degisim = Model.DunkuUretim == 0 ? 0 : (Model.BugunUretilen - Model.DunkuUretim) / Model.DunkuUretim * 100;
+    var gunlukJson = JsonSerializer.Serialize(Model.GunlukUretim.Select(g => new { etiket = g.Etiket, deger = g.Deger }));
+    var urunJson = JsonSerializer.Serialize(Model.UrunDagilimi.Select(g => new { etiket = g.Etiket, deger = g.Deger }));
+    var kritikSayi = Model.Uyarilar.Count(u => u.Seviye == "kritik");
+    var oeeJson = JsonSerializer.Serialize(new { deger = Model.Oee.Oee, etiket = "Bugün" });
+    var oeeTrendJson = JsonSerializer.Serialize(Model.OeeTrend.Select(g => new { etiket = g.Etiket, deger = g.Deger }));
+    var paretoJson = JsonSerializer.Serialize(Model.Pareto.Select(p => new { etiket = p.Etiket, deger = p.Deger, kumulatif = p.KumulatifYuzde }));
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">@DateTime.Now.ToString("dd MMMM yyyy, dddd") · Vardiya @Gorunum.Vardiya(DateTime.Now)</div>
+        <h1 tabindex="-1">Üretim Kontrol Merkezi</h1>
+        <p>Hoş geldin @User.AdSoyad() · Canlı veri <span class="rozet yesil"><span class="nokta"></span>Bağlı</span></p>
+    </div>
+    <div class="eylemler">
+        @if (User.RoldeMi(Roller.Admin, Roller.Yonetici))
+        {
+            <a class="buton bakir" asp-controller="Uretim" asp-action="Yeni">@Ikon.Ciz("arti", 16) Üretim emri</a>
+        }
+        @if (User.RoldeMi(Roller.Operator, Roller.Kalite, Roller.Admin, Roller.Yonetici))
+        {
+            <a class="buton ikincil" asp-controller="Istasyon" asp-action="Index">@Ikon.Ciz("qr", 16) İstasyona git</a>
+        }
+        <button type="button" class="buton ikincil" data-panel-duzenle>@Ikon.Ciz("duzenle", 16) Paneli düzenle</button>
+    </div>
+</div>
+
+<div class="panel-duzen-cubugu" id="panelCubuk" hidden>
+    <span class="esnek">@Ikon.Ciz("tasi", 18) <span><strong>Düzenleme modu</strong> · Kartları tutup sürükleyin, göz simgesiyle gizleyin. Düzen hesabınıza kaydedilir.</span></span>
+    <span class="gizli-kartlar" id="gizliKartlar"></span>
+    <span class="esnek">
+        <button type="button" class="buton ikincil kucuk" data-panel-sifirla>Varsayılana dön</button>
+        <button type="button" class="buton bakir kucuk" data-panel-bitti>@Ikon.Ciz("tik", 14) Bitti</button>
+    </span>
+</div>
+
+<section class="kpiler" aria-label="Göstergeler">
+    <div class="kpi">
+        <span class="etiket">@Ikon.Ciz("uretim", 16) Bugün üretilen</span>
+        <span class="deger" id="bugunSayac" data-sayac="@Model.BugunUretilen">0</span>
+        <span class="alt @(degisim >= 0 ? "renk-yesil" : "renk-kirmizi")">@(degisim >= 0 ? "▲" : "▼") %@Math.Abs(degisim).ToString("0") dünkü üretime göre</span>
+        <span class="ikon-arka">@Ikon.Ciz("uretim", 96)</span>
+    </div>
+    <div class="kpi">
+        <span class="etiket">@Ikon.Ciz("ncr", 16) Fire oranı (7 gün)</span>
+        <span class="deger" data-sayac="@Sayi.Css(Model.FireOrani)" data-basamak="1" data-onek="%">%0</span>
+        <span class="alt @(Model.FireOrani <= 2 ? "renk-yesil" : "renk-kirmizi")">Hedef %2,0 @(Model.FireOrani <= 2 ? "altında" : "üstünde")</span>
+        <span class="ikon-arka">@Ikon.Ciz("spc", 96)</span>
+    </div>
+    <div class="kpi @(Model.AcikNcr > 0 ? "kritik" : "")">
+        <span class="etiket">@Ikon.Ciz("ncr", 16) Açık uygunsuzluk</span>
+        <span class="deger" data-sayac="@Model.AcikNcr">0</span>
+        <span class="alt"><a asp-controller="Ncr" asp-action="Index" asp-route-durum="@NcrDurum.Acik">Karar bekleyenleri gör</a></span>
+        <span class="ikon-arka">@Ikon.Ciz("ncr", 96)</span>
+    </div>
+    <a class="kpi" asp-controller="Fabrika" asp-action="Index" style="text-decoration:none;color:inherit">
+        <span class="etiket">@Ikon.Ciz("rapor", 16) OEE (bugün)</span>
+        <span class="deger renk-@OeeHesaplayici.Sinif(Model.Oee.Oee)" data-sayac="@Sayi.Css(Model.Oee.Oee * 100)" data-basamak="1" data-onek="%">%0</span>
+        <span class="alt">Dünya standardı %85 · K %@((Model.Oee.Kullanilabilirlik * 100).ToString("0")) P %@((Model.Oee.Performans * 100).ToString("0")) Q %@((Model.Oee.Kalite * 100).ToString("0"))</span>
+        <span class="ikon-arka">@Ikon.Ciz("rapor", 96)</span>
+    </a>
+    <div class="kpi">
+        <span class="etiket">@Ikon.Ciz("fabrika", 16) Çalışan makine</span>
+        <span class="deger"><span data-sayac="@Model.CalisanMakine">0</span><span class="renk-soluk" style="font-size:20px">/@Model.ToplamMakine</span></span>
+        <div class="ilerleme"><div class="cubuk"><div class="dolu yesil" style="--w:@Gorunum.Yuzde(Model.CalisanMakine, Model.ToplamMakine)%"></div></div></div>
+        <span class="ikon-arka">@Ikon.Ciz("fabrika", 96)</span>
+    </div>
+</section>
+
+<div class="yan-yana panel-izgara duzen-bekliyor" id="panelIzgara" data-duzen="@Model.Duzen">
+    <div class="genis dikey panel-kolon" style="gap:20px" data-kolon="genis">
+        <section class="kart widget" data-widget="uretim-grafik" data-ad="Günlük üretim" aria-label="Günlük üretim">
+            <div class="kart-baslik">
+                <h2>@Ikon.Ciz("spc") Son 14 gün tamamlanan parça</h2>
+                <small class="renk-soluk">Toplam @(Model.GunlukUretim.Sum(g => g.Deger).ToString("N0"))</small>
+            </div>
+            <div class="grafik" data-grafik="alan" data-etiket="Son 14 gün üretim" data-veri="@gunlukJson"></div>
+        </section>
+
+        <section class="kart widget" data-widget="aktif-emirler" data-ad="Aktif emirler" aria-label="Aktif üretim emirleri">
+            <div class="kart-baslik">
+                <h2>@Ikon.Ciz("uretim") Aktif üretim emirleri</h2>
+                <a asp-controller="Uretim" asp-action="Index">Tümünü gör</a>
+            </div>
+            <div class="tablo-kutu">
+                <table class="tablo genis-tablo">
+                    <thead>
+                        <tr><th>Emir</th><th>Ürün</th><th>Lot</th><th>İlerleme</th><th>Durum</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var e in Model.AktifEmirler)
+                        {
+                            var biten = Model.EmirTamamlanan.GetValueOrDefault(e.Id);
+                            <tr class="@(e.Durum == EmirDurum.Bloke ? "vurgu" : "")">
+                                <td><a class="mono" asp-controller="Uretim" asp-action="Detay" asp-route-id="@e.Id">@e.EmirNo</a></td>
+                                <td>@e.Urun?.Ad</td>
+                                <td class="mono">@e.LotNo</td>
+                                <td>
+                                    <div class="ilerleme">
+                                        <div class="cubuk"><div class="dolu @(e.Durum == EmirDurum.Bloke ? "kirmizi" : "")" style="--w:@Gorunum.Yuzde(biten, e.Miktar)%"></div></div>
+                                        <span class="metin">@biten/@e.Miktar</span>
+                                    </div>
+                                </td>
+                                <td><span class="rozet @Gorunum.EmirSinif(e.Durum) @(e.Durum == EmirDurum.Bloke ? "nabizli" : "")">@e.Durum</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="kart widget" data-widget="oee-trend" data-ad="OEE trendi" aria-label="OEE trendi">
+            <div class="kart-baslik">
+                <h2>@Ikon.Ciz("rapor") Son 14 gün OEE</h2>
+                <a asp-controller="Rapor" asp-action="Vardiya">Vardiya raporu</a>
+            </div>
+            <div class="grafik" data-grafik="alan" data-birim="%" data-hedef="85" data-etiket="OEE trendi" data-veri="@oeeTrendJson"></div>
+        </section>
+
+        <section class="kart widget" data-widget="makine-durumu" data-ad="Makine durumu" aria-label="Makine durumu">
+            <div class="kart-baslik">
+                <h2>@Ikon.Ciz("fabrika") Makine durumu</h2>
+                <a asp-controller="Bakim" asp-action="Index">Bakım planı</a>
+            </div>
+            <div class="makineler">
+                @foreach (var m in Model.Makineler)
+                {
+                    <a class="makine" href="/fabrika?makine=@m.Makine.Kod" style="text-decoration:none;color:inherit">
+                        <span class="durum-isik @Gorunum.MakineSinif(m.Makine.Durum)" title="@m.Makine.Durum"></span>
+                        <span class="kod">@m.Makine.Kod</span>
+                        <small class="renk-soluk">@m.Makine.Ad</small>
+                        <span class="rozet @Gorunum.MakineSinif(m.Makine.Durum)" style="width:fit-content">@m.Makine.Durum</span>
+                    </a>
+                }
+            </div>
+        </section>
+    </div>
+
+    <div class="dar panel-kolon" data-kolon="dar">
+        <section class="kart widget" data-widget="uyarilar" data-ad="Uyarılar" aria-label="Uyarılar">
+            <div class="kart-baslik">
+                <h2>@Ikon.Ciz("ncr") Uyarılar</h2>
+                @if (kritikSayi > 0)
+                {
+                    <span class="rozet kirmizi nabizli">@kritikSayi kritik</span>
+                }
+            </div>
+            @if (Model.Uyarilar.Count == 0)
+            {
+                <div class="bos"><div class="ikon">@Ikon.Ciz("tik", 32)</div>Her şey yolunda</div>
+            }
+            <div class="uyarilar">
+                @foreach (var u in Model.Uyarilar.Take(7))
+                {
+                    <a class="uyari-oge @Gorunum.SeviyeSinif(u.Seviye)" href="@(u.Link ?? "#")">
+                        <span class="ikon">@Ikon.Ciz(u.Ikon, 20)</span>
+                        <span><strong>@u.Baslik</strong><span>@u.Mesaj</span></span>
+                    </a>
+                }
+            </div>
+        </section>
+
+        <section class="kart widget" data-widget="oee-gosterge" data-ad="OEE göstergesi" aria-label="OEE göstergesi">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("rapor") Bugünkü OEE</h2><a asp-controller="Fabrika" asp-action="Index">Fabrika planı</a></div>
+            <div class="grafik" data-grafik="gosterge" data-veri="@oeeJson"></div>
+            <div class="oee-uclu">
+                <div><small>Kullanılabilirlik</small><strong>%@((Model.Oee.Kullanilabilirlik * 100).ToString("0.0"))</strong><div class="ilerleme"><div class="cubuk"><div class="dolu" style="--w:@Sayi.Css(Model.Oee.Kullanilabilirlik * 100)%"></div></div></div></div>
+                <div><small>Performans</small><strong>%@((Model.Oee.Performans * 100).ToString("0.0"))</strong><div class="ilerleme"><div class="cubuk"><div class="dolu" style="--w:@Sayi.Css(Model.Oee.Performans * 100)%"></div></div></div></div>
+                <div><small>Kalite</small><strong>%@((Model.Oee.Kalite * 100).ToString("0.0"))</strong><div class="ilerleme"><div class="cubuk"><div class="dolu yesil" style="--w:@Sayi.Css(Model.Oee.Kalite * 100)%"></div></div></div></div>
+            </div>
+        </section>
+
+        <section class="kart widget" data-widget="canli-akis" data-ad="Canlı akış" aria-label="Canlı istasyon akışı">
+            <div class="kart-baslik">
+                <h2>@Ikon.Ciz("istasyon") Canlı istasyon akışı</h2>
+                <span class="rozet yesil"><span class="nokta"></span>Canlı</span>
+            </div>
+            <div class="akis" id="canliAkis">
+                @foreach (var i in Model.SonIslemler)
+                {
+                    <div class="akis-oge">
+                        <span><span class="mono">@i.SeriNo</span> · @i.Adim · @i.Makine · @i.Kullanici</span>
+                        <time>@i.Zaman.ToString("HH:mm")</time>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="kart widget" data-widget="durus-pareto" data-ad="Duruş Pareto" aria-label="Duruş Pareto">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("durus") Duruş Pareto (7 gün)</h2><a asp-controller="Durus" asp-action="Index">Detay</a></div>
+            @if (Model.Pareto.Count == 0)
+            {
+                <div class="bos">Son 7 günde duruş yok.</div>
+            }
+            else
+            {
+                <div class="grafik" data-grafik="pareto" data-birim="dk" data-kompakt="1" data-veri="@paretoJson"></div>
+            }
+        </section>
+
+        <section class="kart widget" data-widget="urun-dagilimi" data-ad="Ürün dağılımı" aria-label="Ürün dağılımı">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("urun") 30 günlük üretim dağılımı</h2></div>
+            <div class="grafik" data-grafik="halka" data-birim="parça" data-etiket="Ürün dağılımı" data-veri="@urunJson"></div>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/panel.js" asp-append-version="true"></script>
+}

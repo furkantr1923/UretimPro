@@ -1,0 +1,171 @@
+@using System.Text.Json
+@model VardiyaRaporModel
+@{
+    ViewData["Title"] = "Vardiya raporu";
+    var t = Model.Toplam;
+    var tarihMetin = Model.Tarih.ToString("yyyy-MM-dd");
+    var oeeJson = JsonSerializer.Serialize(new { deger = t.Oee, etiket = "Vardiya " + Model.Vardiya });
+    var trendJson = JsonSerializer.Serialize(Model.OeeTrend.Select(g => new { etiket = g.Etiket, deger = g.Deger }));
+    var paretoJson = JsonSerializer.Serialize(Model.Pareto.Select(p => new { etiket = p.Etiket, deger = p.Deger, kumulatif = p.KumulatifYuzde }));
+    var planli = Model.Makineler.Where(m => m.Planli).OrderByDescending(m => m.Sonuc.Oee).ToList();
+    var simdiki = Model.Tarih == DateTime.Today && VardiyaPlani.Kod(DateTime.Now) == Model.Vardiya;
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Raporlar › Vardiya raporu</div>
+        <h1 tabindex="-1" class="esnek">Vardiya raporu ve OEE @if (simdiki) { <span class="rozet yesil"><span class="nokta"></span>Sürüyor</span> }</h1>
+        <p>@Model.Tarih.ToString("dd MMMM yyyy, dddd") · @VardiyaPlani.Ad(Model.Vardiya) · OEE = Kullanılabilirlik × Performans × Kalite</p>
+    </div>
+    <div class="eylemler">
+        <a class="buton ikincil" asp-action="VardiyaPdf" asp-route-tarih="@tarihMetin" asp-route-vardiya="@Model.Vardiya">@Ikon.Ciz("pdf", 16) PDF</a>
+        <a class="buton ikincil" asp-action="VardiyaExcel" asp-route-tarih="@tarihMetin" asp-route-vardiya="@Model.Vardiya">@Ikon.Ciz("excel", 16) Excel</a>
+    </div>
+</div>
+
+<div class="esnek arasi" style="flex-wrap:wrap;gap:12px">
+    <nav class="sekmeler" aria-label="Vardiya">
+        @foreach (var v in VardiyaPlani.Kodlar)
+        {
+            <a class="@(v == Model.Vardiya ? "aktif" : "")" asp-action="Vardiya" asp-route-tarih="@tarihMetin" asp-route-vardiya="@v">@VardiyaPlani.Ad(v)</a>
+        }
+    </nav>
+    <form method="get" class="esnek">
+        <a class="buton ikincil kucuk" asp-action="Vardiya" asp-route-tarih="@Model.Tarih.AddDays(-1).ToString("yyyy-MM-dd")" asp-route-vardiya="@Model.Vardiya" aria-label="Önceki gün">‹</a>
+        <input type="date" name="tarih" value="@tarihMetin" max="@DateTime.Today.ToString("yyyy-MM-dd")" class="girdi" style="width:auto;height:36px" onchange="this.form.submit()" aria-label="Tarih" />
+        <input type="hidden" name="vardiya" value="@Model.Vardiya" />
+        @if (Model.Tarih < DateTime.Today)
+        {
+            <a class="buton ikincil kucuk" asp-action="Vardiya" asp-route-tarih="@Model.Tarih.AddDays(1).ToString("yyyy-MM-dd")" asp-route-vardiya="@Model.Vardiya" aria-label="Sonraki gün">›</a>
+        }
+    </form>
+</div>
+
+<section class="kpiler">
+    <div class="kpi">
+        <span class="etiket">@Ikon.Ciz("rapor", 16) OEE</span>
+        <span class="deger renk-@OeeHesaplayici.Sinif(t.Oee)" data-sayac="@Sayi.Css(t.Oee * 100)" data-basamak="1" data-onek="%">%0</span>
+        <span class="alt">Dünya standardı %85 · tipik %60</span>
+    </div>
+    <div class="kpi">
+        <span class="etiket">@Ikon.Ciz("saat", 16) Kullanılabilirlik</span>
+        <span class="deger" data-sayac="@Sayi.Css(t.Kullanilabilirlik * 100)" data-basamak="1" data-onek="%">%0</span>
+        <span class="alt">Duruş @Model.DurusDakika.ToString("N0") dk</span>
+    </div>
+    <div class="kpi">
+        <span class="etiket">@Ikon.Ciz("oynat", 16) Performans</span>
+        <span class="deger" data-sayac="@Sayi.Css(t.Performans * 100)" data-basamak="1" data-onek="%">%0</span>
+        <span class="alt">İdeal çevrim süresine göre</span>
+    </div>
+    <div class="kpi">
+        <span class="etiket">@Ikon.Ciz("kalkan", 16) Kalite</span>
+        <span class="deger" data-sayac="@Sayi.Css(t.Kalite * 100)" data-basamak="1" data-onek="%">%0</span>
+        <span class="alt">@Model.TamamlananParca.ToString("N0") parça tamamlandı · @Model.Ncrler.Count NCR</span>
+    </div>
+</section>
+
+<div class="yan-yana">
+    <section class="kart dar" style="flex:1 1 300px">
+        <div class="kart-baslik"><h2>@Ikon.Ciz("rapor") Vardiya OEE</h2></div>
+        <div class="grafik" data-grafik="gosterge" data-veri="@oeeJson"></div>
+    </section>
+    <section class="kart genis">
+        <div class="kart-baslik"><h2>@Ikon.Ciz("spc") Son 14 gün OEE</h2><small class="renk-soluk">Günlük, tüm makineler</small></div>
+        <div class="grafik" data-grafik="alan" data-birim="%" data-hedef="85" data-veri="@trendJson"></div>
+    </section>
+</div>
+
+<section class="kart">
+    <div class="kart-baslik"><h2>@Ikon.Ciz("fabrika") Makine bazında OEE</h2><small class="renk-soluk">@planli.Count makine bu vardiyada çalıştı</small></div>
+    @if (planli.Count == 0)
+    {
+        <div class="bos"><div class="ikon">@Ikon.Ciz("saat", 36)</div>Bu vardiyada üretim kaydı yok. A vardiyasını (08:00–16:00) deneyin.</div>
+    }
+    else
+    {
+        <div class="tablo-kutu">
+            <table class="tablo genis-tablo oee-tablo">
+                <thead><tr><th>Makine</th><th class="sag">Planlı</th><th class="sag">Duruş</th><th class="sag">Üretilen</th><th>Kullanılabilirlik</th><th>Performans</th><th>Kalite</th><th>OEE</th></tr></thead>
+                <tbody>
+                    @foreach (var x in planli)
+                    {
+                        <tr>
+                            <td><a class="mono" href="/fabrika?makine=@x.Makine.Kod"><strong>@x.Makine.Kod</strong></a><br /><small class="renk-soluk">@x.Makine.Ad</small></td>
+                            <td class="sag mono">@x.Girdi.PlanliDakika.ToString("N0") dk</td>
+                            <td class="sag mono @(x.Girdi.DurusDakika > 0 ? "renk-kirmizi" : "")">@x.Girdi.DurusDakika.ToString("N0") dk</td>
+                            <td class="sag mono">@x.Girdi.UretilenAdet</td>
+                            @foreach (var (deger, sinif) in new[] { (x.Sonuc.Kullanilabilirlik, ""), (x.Sonuc.Performans, ""), (x.Sonuc.Kalite, "yesil") })
+                            {
+                                <td>
+                                    <div class="ilerleme"><div class="cubuk"><div class="dolu @sinif" style="--w:@Sayi.Css(deger * 100)%"></div></div><span class="metin">%@((deger * 100).ToString("0"))</span></div>
+                                </td>
+                            }
+                            <td><span class="oee-rozet @OeeHesaplayici.Sinif(x.Sonuc.Oee)">%@((x.Sonuc.Oee * 100).ToString("0.0"))</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<div class="yan-yana">
+    <section class="kart genis">
+        <div class="kart-baslik"><h2>@Ikon.Ciz("durus") Duruş Pareto analizi</h2><a asp-controller="Durus" asp-action="Index">Tüm duruşlar</a></div>
+        @if (Model.Pareto.Count == 0)
+        {
+            <div class="bos"><div class="ikon">@Ikon.Ciz("tik", 32)</div>Bu vardiyada duruş yok.</div>
+        }
+        else
+        {
+            <div class="grafik" data-grafik="pareto" data-birim="dk" data-veri="@paretoJson"></div>
+            <div class="tablo-kutu mt">
+                <table class="tablo genis-tablo">
+                    <thead><tr><th>Makine</th><th>Neden</th><th>Başlangıç</th><th class="sag">Süre</th><th>Açıklama</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in Model.Duruslar.OrderBy(d => d.Baslangic))
+                        {
+                            <tr>
+                                <td class="mono">@d.Makine?.Kod</td>
+                                <td><span class="rozet @(d.Neden == DurusNedeni.Ariza ? "kirmizi" : "sari")">@d.Neden</span></td>
+                                <td>@d.Baslangic.ToString("HH:mm")@(d.Bitis == null ? " · sürüyor" : "")</td>
+                                <td class="sag mono">@d.Dakika(DateTime.Now).ToString("N0") dk</td>
+                                <td>@d.Aciklama</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <aside class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("urun") Ürün bazında</h2></div>
+            @if (Model.UrunUretim.Count == 0) { <p class="renk-soluk" style="margin:0">Tamamlanan parça yok.</p> }
+            @foreach (var u in Model.UrunUretim)
+            {
+                <div class="esnek arasi satir-cizgi"><span>@u.Etiket</span><strong class="mono">@u.Deger.ToString("N0")</strong></div>
+            }
+        </section>
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("kullanicilar") Operatör bazında</h2></div>
+            @if (Model.OperatorIslem.Count == 0) { <p class="renk-soluk" style="margin:0">İşlem yok.</p> }
+            @foreach (var o in Model.OperatorIslem)
+            {
+                <div class="esnek arasi satir-cizgi"><span>@o.Etiket</span><strong class="mono">@o.Deger.ToString("N0") işlem</strong></div>
+            }
+        </section>
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("ncr") Uygunsuzluklar</h2></div>
+            @if (Model.Ncrler.Count == 0) { <p class="renk-yesil" style="margin:0">Bu vardiyada NCR açılmadı.</p> }
+            @foreach (var n in Model.Ncrler)
+            {
+                <a class="uyari-oge kirmizi" asp-controller="Ncr" asp-action="Detay" asp-route-id="@n.Id">
+                    <span class="ikon">@Ikon.Ciz("ncr", 18)</span>
+                    <span><strong>@n.NcrNo · @n.Durum</strong><span>@n.Tanim</span></span>
+                </a>
+            }
+        </section>
+    </aside>
+</div>

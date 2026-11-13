@@ -1,0 +1,120 @@
+@using System.Text.Json
+@model DurusModel
+@{
+    ViewData["Title"] = "Duruşlar ve Pareto";
+    var paretoJson = JsonSerializer.Serialize(Model.Pareto.Select(p => new { etiket = p.Etiket, deger = p.Deger, kumulatif = p.KumulatifYuzde }));
+    var makineJson = JsonSerializer.Serialize(Model.MakineBazli.Take(8).Select(m => new { etiket = m.Etiket, deger = m.Deger }));
+    var toplam = Model.Pareto.Sum(p => p.Deger);
+    var hayati = ParetoHesaplayici.HayatiAzlar(Model.Pareto);
+    var donus = Context.Request.Path + Context.Request.QueryString;
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol">Tesis › Duruşlar</div>
+        <h1 tabindex="-1">Duruşlar ve Pareto analizi</h1>
+        <p>Her duruş OEE kullanılabilirliğini düşürür. Pareto, kayıpların %80'ini oluşturan az sayıdaki nedeni gösterir.</p>
+    </div>
+    <div class="eylemler">
+        <nav class="sekmeler" aria-label="Dönem">
+            @foreach (var g in new[] { 7, 14, 30 })
+            {
+                <a class="@(g == Model.Gun ? "aktif" : "")" asp-action="Index" asp-route-gun="@g">Son @g gün</a>
+            }
+        </nav>
+        <a class="buton ikincil" asp-controller="Rapor" asp-action="DurusExcel" asp-route-gun="@Model.Gun">@Ikon.Ciz("excel", 16) Excel</a>
+    </div>
+</div>
+
+<section class="kpiler">
+    <div class="kpi"><span class="etiket">@Ikon.Ciz("saat", 16) Toplam duruş</span><span class="deger" data-sayac="@Sayi.Css(toplam / 60)" data-basamak="1" data-sonek=" sa">0</span><span class="alt">@toplam.ToString("N0") dakika</span></div>
+    <div class="kpi"><span class="etiket">@Ikon.Ciz("durus", 16) Duruş sayısı</span><span class="deger" data-sayac="@Model.Duruslar.Count">0</span><span class="alt">Son @Model.Gun gün</span></div>
+    <div class="kpi @(Model.Acik.Count > 0 ? "kritik" : "")"><span class="etiket">@Ikon.Ciz("ncr", 16) Şu an duran</span><span class="deger" data-sayac="@Model.Acik.Count">0</span><span class="alt">Açık duruş kaydı</span></div>
+    <div class="kpi"><span class="etiket">@Ikon.Ciz("spc", 16) En büyük kayıp</span><span class="deger" style="font-size:22px">@(Model.Pareto.FirstOrDefault()?.Etiket ?? "—")</span><span class="alt">@(Model.Pareto.Count > 0 ? "%" + Model.Pareto[0].Yuzde.ToString("0") + " pay" : "")</span></div>
+</section>
+
+<div class="yan-yana">
+    <div class="genis dikey" style="gap:20px">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("rapor") Pareto: nedenlere göre duruş süresi</h2><small class="renk-soluk">dakika</small></div>
+            @if (Model.Pareto.Count == 0)
+            {
+                <div class="bos">Bu dönemde duruş yok.</div>
+            }
+            else
+            {
+                <div class="grafik" data-grafik="pareto" data-birim="dk" data-veri="@paretoJson"></div>
+                <div class="mesaj bilgi mt">
+                    @Ikon.Ciz("bilgi")
+                    <span><strong>80/20:</strong> @(string.Join(", ", hayati.Select(h => h.Etiket))) toplam kaybın %@(hayati.LastOrDefault()?.KumulatifYuzde.ToString("0")) kadarını oluşturuyor. İyileştirmeye buradan başlayın.</span>
+                </div>
+            }
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("durus") Duruş kayıtları</h2><small class="renk-soluk">Son @Model.Duruslar.Count kayıt</small></div>
+            <div class="tablo-kutu">
+                <table class="tablo genis-tablo">
+                    <thead><tr><th>Makine</th><th>Neden</th><th>Başlangıç</th><th class="sag">Süre</th><th>Açıklama</th><th>Bildiren</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var d in Model.Duruslar)
+                        {
+                            <tr class="@(d.Bitis == null ? "vurgu" : "")">
+                                <td class="mono"><a href="/fabrika?makine=@d.Makine?.Kod">@d.Makine?.Kod</a></td>
+                                <td><span class="rozet @(d.Neden == DurusNedeni.Ariza ? "kirmizi" : d.Neden == DurusNedeni.PlanliBakim ? "mavi" : "sari")">@d.Neden</span></td>
+                                <td>@d.Baslangic.ToString("dd.MM HH:mm")</td>
+                                <td class="sag mono">@Gorunum.Sure((d.Bitis ?? DateTime.Now) - d.Baslangic)</td>
+                                <td>@d.Aciklama</td>
+                                <td>@d.BildirenKisi</td>
+                                <td>
+                                    @if (d.Bitis == null)
+                                    {
+                                        <form method="post" asp-action="Bitir" asp-route-id="@d.Id">
+                                            <input type="hidden" name="donus" value="@donus" />
+                                            <button type="submit" class="buton yesil kucuk">Bitir</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <aside class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("arti") Duruş başlat</h2></div>
+            <form method="post" asp-action="Baslat" class="form-dikey">
+                <input type="hidden" name="donus" value="@donus" />
+                <label class="alan">Makine
+                    <select name="makineId" class="girdi">
+                        @foreach (var m in Model.Makineler)
+                        {
+                            <option value="@m.Id">@m.Kod · @m.Ad (@m.Durum)</option>
+                        }
+                    </select>
+                </label>
+                <label class="alan">Neden
+                    <select name="neden" class="girdi">
+                        @foreach (var n in DurusNedeni.Tumu)
+                        {
+                            <option value="@n">@n</option>
+                        }
+                    </select>
+                </label>
+                <label class="alan">Açıklama <input name="aciklama" class="girdi" placeholder="Örn. hidrolik basınç düştü" /></label>
+                <button type="submit" class="buton bakir">@Ikon.Ciz("durus", 16) Duruşu başlat</button>
+            </form>
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("fabrika") Makine bazında</h2><small class="renk-soluk">dakika</small></div>
+            @if (Model.MakineBazli.Count > 0)
+            {
+                <div class="grafik" data-grafik="cubuk" data-birim="dk" data-veri="@makineJson"></div>
+            }
+        </section>
+    </aside>
+</div>

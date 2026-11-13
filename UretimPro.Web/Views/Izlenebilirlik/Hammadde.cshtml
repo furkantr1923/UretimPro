@@ -1,0 +1,57 @@
+@model HammaddeIzModel
+@{
+    var l = Model.Lot;
+    ViewData["Title"] = l.LotNo;
+    var kullanilan = l.BaslangicMiktar - l.KalanMiktar;
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol"><a asp-action="Index">İzlenebilirlik</a> › Hammadde lotu</div>
+        <h1 tabindex="-1"><span class="mono">@l.LotNo</span></h1>
+        <p>@l.Malzeme?.Ad · @l.Tedarikci · Sertifika <span class="mono">@l.SertifikaNo</span> · Giriş @l.GirisTarihi.ToString("dd.MM.yyyy")</p>
+    </div>
+    <div class="eylemler">
+        <a class="buton bakir" asp-action="Agac" asp-route-hammadde="@l.LotNo">@Ikon.Ciz("agac", 16) Geri çağırma ağacı</a>
+    </div>
+</div>
+
+<div class="mesaj bilgi">
+    @Ikon.Ciz("bilgi")
+    <span><strong>Geri çağırma senaryosu:</strong> Tedarikçi bu lotta sorun bildirirse, aşağıdaki üretim lotları ve içlerindeki tüm seri numaraları anında bulunur.</span>
+</div>
+
+<section class="kpiler">
+    <div class="kpi"><span class="etiket">Giriş miktarı</span><span class="deger" data-sayac="@Sayi.Css(l.BaslangicMiktar)" data-sonek=" kg">0</span></div>
+    <div class="kpi"><span class="etiket">Kullanılan</span><span class="deger" data-sayac="@Sayi.Css(kullanilan)" data-sonek=" kg">0</span></div>
+    <div class="kpi"><span class="etiket">Kalan</span><span class="deger renk-yesil" data-sayac="@Sayi.Css(l.KalanMiktar)" data-sonek=" kg">0</span></div>
+    <div class="kpi"><span class="etiket">Etkilenen üretim lotu</span><span class="deger" data-sayac="@Model.Tuketimler.Count">0</span></div>
+</section>
+
+<section class="kart">
+    <div class="kart-baslik"><h2>@Ikon.Ciz("agac") Bu hammaddeden üretilen lotlar</h2></div>
+    @if (Model.Tuketimler.Count == 0)
+    {
+        <div class="bos">Bu lot henüz üretimde kullanılmadı.</div>
+    }
+    else
+    {
+        <div class="tablo-kutu">
+            <table class="tablo">
+                <thead><tr><th>Üretim lotu</th><th>Emir</th><th>Ürün</th><th>Tarih</th><th class="sag">Kullanılan</th></tr></thead>
+                <tbody>
+                    @foreach (var t in Model.Tuketimler)
+                    {
+                        <tr>
+                            <td><a class="mono" asp-action="Lot" asp-route-lotNo="@t.UretimEmri?.LotNo"><strong>@t.UretimEmri?.LotNo</strong></a></td>
+                            <td class="mono">@t.UretimEmri?.EmirNo</td>
+                            <td>@t.UretimEmri?.Urun?.Ad</td>
+                            <td>@t.Zaman.ToString("dd.MM.yyyy HH:mm")</td>
+                            <td class="sag mono">@t.Miktar.ToString("N1") kg</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

@@ -1,0 +1,39 @@
+@model AgacDugum
+<li style="--d:@Model.Derinlik" class="@(Model.Derinlik >= 3 && Model.Cocuklar.Count > 0 ? "kapali" : "")">
+    <div class="dugum @(Model.Derinlik == 0 ? "kok" : "")">
+        @if (Model.Cocuklar.Count > 0)
+        {
+            <button type="button" class="dal-dugme" data-dal aria-expanded="@(Model.Derinlik >= 3 ? "false" : "true")" aria-label="Dalı aç / kapat">
+                <span class="dal-isaret"></span><small>@Model.Cocuklar.Count</small>
+            </button>
+        }
+        <span class="dugum-ikon">@Ikon.Ciz(Model.Ikon, 16)</span>
+        <span class="dugum-metin">
+            @if (Model.Link != null)
+            {
+                <a href="@Model.Link" class="@(Model.Mono ? "mono" : "")">@Model.Baslik</a>
+            }
+            else
+            {
+                <strong class="@(Model.Mono ? "mono" : "")">@Model.Baslik</strong>
+            }
+            @if (Model.Alt != null)
+            {
+                <small>@Model.Alt</small>
+            }
+        </span>
+        @if (Model.Rozet != null)
+        {
+            <span class="rozet @Model.RozetSinif">@Model.Rozet</span>
+        }
+    </div>
+    @if (Model.Cocuklar.Count > 0)
+    {
+        <ul>
+            @foreach (var c in Model.Cocuklar)
+            {
+                <partial name="_AgacDugum" model="c" />
+            }
+        </ul>
+    }
+</li>

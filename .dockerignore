@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/.vs/
+**/publish/
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.surum
+.git/
+UretimPro.Tests/

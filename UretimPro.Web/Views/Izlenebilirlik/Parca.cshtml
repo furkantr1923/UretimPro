@@ -1,0 +1,101 @@
+@model ParcaIzModel
+@{
+    var p = Model.Parca;
+    ViewData["Title"] = p.SeriNo;
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol"><a asp-action="Index">İzlenebilirlik</a> › Seri no</div>
+        <h1 tabindex="-1" class="esnek"><span class="mono">@p.SeriNo</span> <span class="rozet @Gorunum.ParcaSinif(p.Durum)">@p.Durum</span></h1>
+        <p>@p.Urun?.Ad · Emir <a class="mono" asp-controller="Uretim" asp-action="Detay" asp-route-id="@p.UretimEmriId">@p.UretimEmri?.EmirNo</a> · Lot <a class="mono" asp-action="Lot" asp-route-lotNo="@p.UretimEmri?.LotNo">@p.UretimEmri?.LotNo</a></p>
+    </div>
+    <div class="qr-etiket" style="width:150px">
+        @QrServisi.Svg(p.SeriNo, 3)
+        <span class="seri">@p.SeriNo</span>
+    </div>
+</div>
+
+<section class="kart">
+    <div class="kart-baslik"><h2>@Ikon.Ciz("istasyon") Rota ilerlemesi</h2></div>
+    <div class="rota">
+        @foreach (var a in Model.Adimlar)
+        {
+            var islem = Model.Islemler.LastOrDefault(i => i.RotaAdimiId == a.Id);
+            var siradaki = p.TamamlananAdim == a.Sira - 1 && p.Durum != ParcaDurum.Hurda && p.Durum != ParcaDurum.Tamamlandi;
+            <div class="rota-adim @(islem != null ? "tamam" : siradaki ? "aktif" : "")">
+                <span class="sira">ADIM @a.Sira · @a.Makine?.Kod</span>
+                <strong>@a.Ad</strong>
+                <small class="renk-soluk">@(islem != null ? islem.Zaman.ToString("dd.MM HH:mm") + " · " + islem.Operator?.AdSoyad : siradaki ? (p.Durum == ParcaDurum.Bloke ? "Bloke · karar bekliyor" : "Sırada") : "Bekliyor")</small>
+            </div>
+        }
+    </div>
+</section>
+
+<div class="yan-yana">
+    <section class="kart genis">
+        <div class="kart-baslik"><h2>@Ikon.Ciz("saat") Parçanın hikâyesi</h2></div>
+        <div class="zaman">
+            @foreach (var h in Model.Hammaddeler)
+            {
+                <div class="zaman-oge" style="--renk:var(--bakir)">
+                    <strong>Hammadde · @h.HammaddeLotu?.Malzeme?.Ad</strong>
+                    <small>Lot <a class="mono" asp-action="Hammadde" asp-route-lotNo="@h.HammaddeLotu?.LotNo">@h.HammaddeLotu?.LotNo</a> · @h.HammaddeLotu?.Tedarikci · sertifika @h.HammaddeLotu?.SertifikaNo</small>
+                </div>
+            }
+            @foreach (var i in Model.Islemler)
+            {
+                var olcumler = Model.Olcumler.Where(x => x.Zaman <= i.Zaman && x.Zaman >= i.Zaman.AddMinutes(-60) && x.MakineId == i.MakineId).ToList();
+                <div class="zaman-oge">
+                    <strong>@i.RotaAdimi?.Ad · @i.Makine?.Kod</strong>
+                    <small>@i.Zaman.ToString("dd.MM.yyyy HH:mm:ss") · @i.Operator?.AdSoyad</small>
+                    @if (olcumler.Count > 0)
+                    {
+                        <div class="detay">
+                            @foreach (var o in olcumler)
+                            {
+                                <div class="esnek arasi">
+                                    <span>@o.Karakteristik?.Ad <small class="renk-soluk">(@o.OlcumAleti?.Kod)</small></span>
+                                    <span class="mono"><strong class="@(o.Uygun ? "renk-yesil" : "renk-kirmizi")">@o.Deger.ToString("0.000")</strong> @o.Karakteristik?.Birim</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @foreach (var o in Model.Olcumler.Where(x => !x.Uygun))
+            {
+                <div class="zaman-oge" style="--renk:var(--kirmizi)">
+                    <strong class="renk-kirmizi">Tolerans dışı ölçüm · @o.Karakteristik?.Ad</strong>
+                    <small>@o.Zaman.ToString("dd.MM.yyyy HH:mm") · @o.Deger.ToString("0.000") @o.Karakteristik?.Birim · @o.Kullanici?.AdSoyad</small>
+                </div>
+            }
+            @foreach (var n in Model.Ncrler)
+            {
+                <div class="zaman-oge" style="--renk:var(--sari)">
+                    <strong><a asp-controller="Ncr" asp-action="Detay" asp-route-id="@n.Id">@n.NcrNo</a> · @n.Durum @(n.Karar != null ? "· " + n.Karar : "")</strong>
+                    <small>@n.Tanim</small>
+                </div>
+            }
+            @if (p.TamamlanmaTarihi is DateTime t)
+            {
+                <div class="zaman-oge" style="--renk:var(--yesil)">
+                    <strong class="renk-yesil">Tamamlandı · sevkiyata hazır</strong>
+                    <small>@t.ToString("dd.MM.yyyy HH:mm")</small>
+                </div>
+            }
+        </div>
+    </section>
+
+    <aside class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("kalkan") Özet</h2></div>
+            <div class="dikey" style="font-size:14px">
+                <div class="esnek arasi"><span class="renk-soluk">Adım</span><strong class="mono">@p.TamamlananAdim/@Model.Adimlar.Count</strong></div>
+                <div class="esnek arasi"><span class="renk-soluk">Ölçüm</span><strong class="mono">@Model.Olcumler.Count</strong></div>
+                <div class="esnek arasi"><span class="renk-soluk">Tolerans dışı</span><strong class="mono">@(Model.Olcumler.Count(x => !x.Uygun))</strong></div>
+                <div class="esnek arasi"><span class="renk-soluk">Operatör</span><strong>@(string.Join(", ", Model.Islemler.Select(x => x.Operator?.AdSoyad).Distinct()))</strong></div>
+            </div>
+        </section>
+    </aside>
+</div>

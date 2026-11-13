@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/Cozum Dosyalari/">
+    <File Path="Directory.Build.props" />
+    <File Path="Dockerfile" />
+    <File Path="docker-compose.yml" />
+    <File Path="README.md" />
+    <File Path=".github/workflows/ci.yml" />
+  </Folder>
+  <Project Path="UretimPro.Web/UretimPro.Web.csproj" />
+  <Project Path="UretimPro.Tests/UretimPro.Tests.csproj" />
+</Solution>

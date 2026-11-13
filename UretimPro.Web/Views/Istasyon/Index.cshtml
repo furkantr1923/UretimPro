@@ -1,0 +1,41 @@
+@model IstasyonSecimModel
+@{
+    ViewData["Title"] = "İstasyon seç";
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <h1 tabindex="-1">İstasyon seç</h1>
+        <p>Çalıştığın makineyi seç. Sadece yetkinlik belgen olan istasyonlarda işlem yapabilirsin.</p>
+    </div>
+    <div class="eylemler">
+        <span class="rozet yesil"><span class="nokta"></span>@Model.Yetkili.Count istasyonda yetkilisin</span>
+    </div>
+</div>
+
+<div class="istasyon-sec">
+    @foreach (var m in Model.Makineler)
+    {
+        var yetkili = Model.Yetkili.Contains(m.Id);
+        var bekleyen = Model.BekleyenParca.GetValueOrDefault(m.Id);
+        <a class="istasyon-kart @(yetkili ? "" : "yetkisiz")" asp-action="Ekran" asp-route-id="@m.Id">
+            <div class="ust">
+                <span class="kod">@m.Kod</span>
+                <span class="durum-isik @Gorunum.MakineSinif(m.Durum)" style="position:static" title="@m.Durum"></span>
+            </div>
+            <span>@m.Ad</span>
+            <div class="esnek">
+                <span class="rozet @Gorunum.MakineSinif(m.Durum)">@m.Durum</span>
+                @if (yetkili)
+                {
+                    <span class="rozet bakir">@Ikon.Ciz("yetkinlik", 12) Yetkin</span>
+                }
+                else
+                {
+                    <span class="rozet">@Ikon.Ciz("kilit", 12) Yetki yok</span>
+                }
+            </div>
+            <small class="renk-soluk">@bekleyen parça bu istasyonda sırada</small>
+        </a>
+    }
+</div>

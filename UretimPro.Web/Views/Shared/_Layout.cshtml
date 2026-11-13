@@ -1,0 +1,154 @@
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var action = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+    var rol = User.Rol();
+    var adSoyad = User.AdSoyad();
+    var basHarfler = string.Concat(adSoyad.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => p[0]));
+}
+@functions {
+    string Aktif(string c, string? a = null)
+    {
+        var ctrl = ViewContext.RouteData.Values["controller"]?.ToString();
+        var act = ViewContext.RouteData.Values["action"]?.ToString();
+        var eslesti = string.Equals(ctrl, c, StringComparison.OrdinalIgnoreCase)
+                      && (a == null || string.Equals(act, a, StringComparison.OrdinalIgnoreCase));
+        return eslesti ? "aktif" : "";
+    }
+}
+<!DOCTYPE html>
+<html lang="tr" data-tema="acik">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] · ÜretimPro</title>
+    <script>try { var t = localStorage.getItem('tema'); if (t) document.documentElement.dataset.tema = t; } catch (e) { }</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <meta name="csrf" content="@Antiforgery.GetAndStoreTokens(Context).RequestToken" />
+</head>
+<body data-efekt="@TempData["Efekt"]" data-canli="1">
+    <div class="uygulama">
+        <aside class="yan-menu" id="yanMenu" aria-label="Ana menü">
+            <a class="logo" asp-controller="Panel" asp-action="Index">
+                <span class="logo-ikon">@Ikon.Ciz("fabrika", 22)</span>
+                <span><strong>ÜretimPro</strong><span>İzlenebilirlik ve Kalite</span></span>
+            </a>
+
+            <nav class="menu">
+                <div class="menu-baslik">Operasyon</div>
+                <a class="@Aktif("Panel")" asp-controller="Panel" asp-action="Index">@Ikon.Ciz("panel") Kontrol merkezi</a>
+                <a class="@Aktif("Uretim")" asp-controller="Uretim" asp-action="Index">@Ikon.Ciz("uretim") Üretim emirleri</a>
+                @if (User.RoldeMi(Roller.Operator, Roller.Kalite, Roller.Admin, Roller.Yonetici))
+                {
+                    <a class="@Aktif("Istasyon")" asp-controller="Istasyon" asp-action="Index">@Ikon.Ciz("istasyon") İstasyon (QR okutma)</a>
+                }
+                <a class="@Aktif("Fabrika")" asp-controller="Fabrika" asp-action="Index">@Ikon.Ciz("harita") Fabrika yerleşimi</a>
+                <a class="@Aktif("Izlenebilirlik", "Index")" asp-controller="Izlenebilirlik" asp-action="Index">@Ikon.Ciz("ara") İzlenebilirlik</a>
+                <a class="@Aktif("Izlenebilirlik", "Agac")" asp-controller="Izlenebilirlik" asp-action="Agac">@Ikon.Ciz("agac") Lot soy ağacı</a>
+
+                <div class="menu-baslik">Kalite</div>
+                @if (User.RoldeMi(Roller.Kalite, Roller.Yonetici, Roller.Admin, Roller.DepoBakim))
+                {
+                    <a class="@Aktif("Kalite", "Index")" asp-controller="Kalite" asp-action="Index">@Ikon.Ciz("spc") SPC ve kontrol grafiği</a>
+                    <a class="@Aktif("Kalite", "Kalibrasyon")" asp-controller="Kalite" asp-action="Kalibrasyon">@Ikon.Ciz("kalibrasyon") Kalibrasyon</a>
+                }
+                <a class="@Aktif("Ncr")" asp-controller="Ncr" asp-action="Index">@Ikon.Ciz("ncr") Uygunsuzluklar (NCR)</a>
+
+                <div class="menu-baslik">Tesis</div>
+                @if (User.RoldeMi(Roller.DepoBakim, Roller.Yonetici, Roller.Admin))
+                {
+                    <a class="@Aktif("Depo")" asp-controller="Depo" asp-action="Index">@Ikon.Ciz("depo") Depo ve stok</a>
+                }
+                <a class="@Aktif("Bakim")" asp-controller="Bakim" asp-action="Index">@Ikon.Ciz("bakim") Bakım</a>
+                <a class="@Aktif("Durus")" asp-controller="Durus" asp-action="Index">@Ikon.Ciz("durus") Duruşlar ve Pareto</a>
+
+                @if (User.RoldeMi(Roller.Admin, Roller.Yonetici, Roller.Kalite, Roller.DepoBakim))
+                {
+                    <div class="menu-baslik">Raporlar</div>
+                    <a class="@Aktif("Rapor", "Vardiya")" asp-controller="Rapor" asp-action="Vardiya">@Ikon.Ciz("rapor") Vardiya raporu · OEE</a>
+                }
+
+                @if (User.RoldeMi(Roller.Admin, Roller.Yonetici, Roller.Kalite))
+                {
+                    <div class="menu-baslik">Yönetim</div>
+                    <a class="@Aktif("Yonetim", "Urunler")" asp-controller="Yonetim" asp-action="Urunler">@Ikon.Ciz("urun") Ürünler ve toleranslar</a>
+                }
+                @if (User.RoldeMi(Roller.Admin, Roller.Yonetici))
+                {
+                    <a class="@Aktif("Yonetim", "Yetkinlik")" asp-controller="Yonetim" asp-action="Yetkinlik">@Ikon.Ciz("yetkinlik") Yetkinlik matrisi</a>
+                    <a class="@Aktif("Audit")" asp-controller="Audit" asp-action="Index">@Ikon.Ciz("audit") Audit log</a>
+                }
+                @if (User.IsInRole(Roller.Admin))
+                {
+                    <a class="@Aktif("Yonetim", "Kullanicilar")" asp-controller="Yonetim" asp-action="Kullanicilar">@Ikon.Ciz("kullanicilar") Kullanıcılar</a>
+                    <a href="/swagger" target="_blank" rel="noopener">@Ikon.Ciz("api") REST API (Swagger)</a>
+                }
+            </nav>
+
+            <div class="menu-alt">
+                <span class="canli-nokta"></span>Sistem çevrimiçi<br />
+                Vardiya: <strong>@Gorunum.Vardiya(DateTime.Now)</strong><br />
+                ÜretimPro v2.0 · Demo
+            </div>
+        </aside>
+
+        <div class="ana">
+            <header class="ust-cubuk">
+                <button type="button" class="ikon-dugme menu-dugme" data-menu-ac aria-label="Menüyü aç">@Ikon.Ciz("menu")</button>
+                <form class="arama" method="get" action="/izlenebilirlik" role="search">
+                    @Ikon.Ciz("ara", 16)
+                    <input type="search" name="q" placeholder="Seri no, lot, emir veya NCR ara" aria-label="İzlenebilirlik araması" />
+                    <button type="button" class="kisayol" data-komut-ac title="Komut paleti">Ctrl K</button>
+                </form>
+                <div class="ust-sag">
+                    <button type="button" class="ikon-dugme" data-tema-degistir aria-label="Açık / karanlık tema">
+                        <span data-tema-ikon="acik">@Ikon.Ciz("ay")</span>
+                        <span data-tema-ikon="karanlik" class="gizli">@Ikon.Ciz("gunes")</span>
+                    </button>
+                    @await Component.InvokeAsync("BildirimZili")
+                    <div class="kullanici-kutu">
+                        <span class="avatar" aria-hidden="true">@basHarfler</span>
+                        <span class="ad"><strong>@adSoyad</strong><small>@Roller.Ad(rol)</small></span>
+                    </div>
+                    <form method="post" asp-controller="Hesap" asp-action="Cikis">
+                        <button type="submit" class="ikon-dugme" aria-label="Çıkış yap" title="Çıkış">@Ikon.Ciz("cikis")</button>
+                    </form>
+                </div>
+            </header>
+
+            <main class="icerik">
+                @if (TempData["Mesaj"] is string mesaj)
+                {
+                    <div class="mesaj basari" role="status">@Ikon.Ciz("tik")<span>@mesaj</span><button type="button" class="kapat" data-kapat aria-label="Kapat">@Ikon.Ciz("carpi", 16)</button></div>
+                }
+                @if (TempData["Hata"] is string hata)
+                {
+                    <div class="mesaj hata" role="alert">@Ikon.Ciz("ncr")<span>@hata</span><button type="button" class="kapat" data-kapat aria-label="Kapat">@Ikon.Ciz("carpi", 16)</button></div>
+                }
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <div id="tostlar" class="tostlar" aria-live="polite"></div>
+
+    <div class="komut-katman" id="komutKatman" hidden>
+        <div class="komut-kutu" role="dialog" aria-modal="true" aria-label="Komut paleti">
+            <div class="komut-arama">
+                @Ikon.Ciz("ara", 18)
+                <input id="komutGirdi" type="text" autocomplete="off" spellcheck="false" placeholder="Sayfa, komut, seri no, lot, NCR veya makine ara..." aria-label="Komut ara" />
+                <kbd>Esc</kbd>
+            </div>
+            <div class="komut-liste" id="komutListe" role="listbox"></div>
+            <div class="komut-alt"><span><kbd>↑</kbd><kbd>↓</kbd> gez</span><span><kbd>Enter</kbd> aç</span><span><kbd>Ctrl</kbd><kbd>K</kbd> aç / kapat</span></div>
+        </div>
+    </div>
+
+    <script src="~/js/efekt.js" asp-append-version="true"></script>
+    <script src="~/js/grafik.js" asp-append-version="true"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/komut.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

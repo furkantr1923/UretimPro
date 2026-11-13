@@ -1,0 +1,33 @@
+@model BildirimZiliModel
+
+<details class="zil">
+    <summary class="ikon-dugme" id="zilDugme" aria-label="Bildirimler">
+        @Ikon.Ciz("zil")
+        @if (Model.Okunmamis > 0)
+        {
+            <span class="zil-sayi">@(Model.Okunmamis > 99 ? "99+" : Model.Okunmamis.ToString())</span>
+        }
+    </summary>
+    <div class="zil-panel">
+        <div class="baslik">
+            <strong>Bildirimler</strong>
+            <a href="/bildirim">Tümünü gör</a>
+        </div>
+        @if (Model.Son.Count == 0)
+        {
+            <div class="bos">Bildirim yok</div>
+        }
+        @foreach (var b in Model.Son)
+        {
+            var renk = b.Seviye == "kritik" ? "var(--kirmizi)" : b.Seviye == "uyari" ? "var(--sari)" : "var(--mavi)";
+            <a class="zil-oge" href="@(b.Link ?? "/bildirim")">
+                <span class="nokta" style="background:@renk"></span>
+                <span>
+                    <strong style="font-weight:@(b.Zaman > Model.SonOkuma ? "700" : "500")">@b.Baslik</strong>
+                    <small>@b.Mesaj</small>
+                    <small>@Gorunum.GecenSure(b.Zaman)</small>
+                </span>
+            </a>
+        }
+    </div>
+</details>

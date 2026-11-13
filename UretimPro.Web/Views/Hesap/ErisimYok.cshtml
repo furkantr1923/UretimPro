@@ -1,0 +1,9 @@
+@{
+    ViewData["Title"] = "Erişim yok";
+}
+<div class="kart bos">
+    <div class="ikon">@Ikon.Ciz("kilit", 40)</div>
+    <h1 style="font-size:22px">Bu sayfaya erişim yetkin yok</h1>
+    <p>Rolün (@Roller.Ad(User.Rol())) bu işlemi yapmaya izin vermiyor. Yöneticinle görüş.</p>
+    <a class="buton ikincil" asp-controller="Panel" asp-action="Index">Kontrol merkezine dön</a>
+</div>

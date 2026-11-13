@@ -1,0 +1,130 @@
+@model IstasyonEkranModel
+@{
+    ViewData["Title"] = $"{Model.Makine.Kod} istasyonu";
+    var m = Model.Makine;
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <div class="yol"><a asp-action="Index">İstasyonlar</a> › @m.Kod</div>
+        <h1 tabindex="-1" class="esnek">@m.Kod · @m.Ad <span class="rozet @Gorunum.MakineSinif(m.Durum)">@m.Durum</span></h1>
+        <p>Operatör: <strong>@User.AdSoyad()</strong> ·
+            @if (Model.Yetkili)
+            {
+                <span class="renk-yesil">Yetkinlik geçerli (@Model.YetkinlikBitis?.ToString("dd.MM.yyyy") tarihine kadar)</span>
+            }
+            else if (Model.YetkinlikBitis != null)
+            {
+                <span class="renk-kirmizi">Yetkinlik belgen @Model.YetkinlikBitis?.ToString("dd.MM.yyyy") tarihinde sona erdi</span>
+            }
+            else
+            {
+                <span class="renk-kirmizi">Bu istasyon için yetkinlik belgen yok</span>
+            }
+        </p>
+    </div>
+    <div class="eylemler">
+        <div class="kpi" style="padding:10px 16px;animation:none">
+            <span class="etiket">Bugün bu istasyonda</span>
+            <span class="deger" style="font-size:24px" id="bugunSayac">@Model.BugunIslem</span>
+        </div>
+    </div>
+</div>
+
+<div class="yan-yana" id="istasyon" data-makine-id="@m.Id">
+    <div class="genis dikey" style="gap:20px">
+        <section class="okutma" aria-label="Seri no okutma">
+            <div class="tarama-cizgi" aria-hidden="true"></div>
+            <form id="okutForm" class="dikey" autocomplete="off">
+                <label for="seriGirdi">@Ikon.Ciz("qr", 16) QR / barkod okut ya da seri numarasını yaz, Enter'a bas</label>
+                <div class="okutma-satir">
+                    <input id="seriGirdi" placeholder="FL120-00681" spellcheck="false" />
+                    <button type="submit" class="buton bakir">@Ikon.Ciz("ok-sag", 18) Okut</button>
+                </div>
+            </form>
+            @if (Model.OrnekSeriNolar.Count > 0)
+            {
+                <div class="ornek-seri">
+                    <span>Sırası gelen parçalar:</span>
+                    @foreach (var s in Model.OrnekSeriNolar)
+                    {
+                        <button type="button" data-ornek-seri="@s">@s</button>
+                    }
+                </div>
+            }
+        </section>
+
+        <div id="sonuc" aria-live="assertive">
+            <div class="kart bos">
+                <div class="ikon">@Ikon.Ciz("istasyon", 40)</div>
+                Parçanın QR etiketini okut. Sistem rota sırasını, yetkinliği, kalibrasyonu ve lot durumunu kontrol eder.
+            </div>
+        </div>
+    </div>
+
+    <div class="dar">
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("kalkan") Otomatik kontroller</h2></div>
+            <div class="dikey" style="font-size:14px">
+                <div class="esnek">@Ikon.Ciz("tik", 16) <span>Rota sırası atlanamaz</span></div>
+                <div class="esnek">@Ikon.Ciz("tik", 16) <span>Sertifikasız operatör işlem yapamaz</span></div>
+                <div class="esnek">@Ikon.Ciz("tik", 16) <span>Kalibrasyonu geçmiş aletle ölçüm girilemez</span></div>
+                <div class="esnek">@Ikon.Ciz("tik", 16) <span>Tolerans dışı parça anında bloke, NCR açılır</span></div>
+                <div class="esnek">@Ikon.Ciz("tik", 16) <span>Arızalı makinede üretim engellenir</span></div>
+            </div>
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik">
+                <h2>@Ikon.Ciz("saat") Son işlemler</h2>
+                <span class="rozet yesil"><span class="nokta"></span>Canlı</span>
+            </div>
+            <div class="akis" id="canliAkis" data-makine="@m.Kod">
+                @foreach (var i in Model.SonIslemler)
+                {
+                    <div class="akis-oge">
+                        <span><span class="mono">@i.SeriNo</span> · @i.Adim · @i.Kullanici</span>
+                        <time>@i.Zaman.ToString("HH:mm")</time>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("durus") Duruş bildir</h2><small class="renk-soluk">OEE'ye yansır</small></div>
+            <form method="post" asp-controller="Durus" asp-action="Baslat" class="form-dikey">
+                <input type="hidden" name="makineId" value="@m.Id" />
+                <input type="hidden" name="donus" value="@Context.Request.Path" />
+                <label class="alan">Neden
+                    <select name="neden" class="girdi">
+                        @foreach (var neden in DurusNedeni.Tumu.Where(x => x != DurusNedeni.PlanliBakim))
+                        {
+                            <option value="@neden">@neden</option>
+                        }
+                    </select>
+                </label>
+                <label class="alan">Not (isteğe bağlı)
+                    <input name="aciklama" class="girdi" placeholder="Örn. kesimden parça gelmedi" />
+                </label>
+                <button type="submit" class="buton ikincil">@Ikon.Ciz("durus", 16) Duruşu başlat</button>
+            </form>
+            <a class="mt" asp-controller="Durus" asp-action="Index" style="display:inline-block;font-size:13px">Açık duruşu bitirmek için duruş ekranı →</a>
+        </section>
+
+        <section class="kart">
+            <div class="kart-baslik"><h2>@Ikon.Ciz("bakim") Makinede sorun mu var?</h2></div>
+            <form method="post" asp-controller="Bakim" asp-action="ArizaBildir" class="form-dikey">
+                <input type="hidden" name="makineId" value="@m.Id" />
+                <input type="hidden" name="donus" value="@Context.Request.Path" />
+                <label class="alan">Arıza açıklaması
+                    <input name="aciklama" class="girdi" placeholder="Örn. iş mili titreşimi" />
+                </label>
+                <button type="submit" class="buton tehlike">@Ikon.Ciz("ncr", 16) Arıza bildir</button>
+            </form>
+        </section>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/istasyon.js" asp-append-version="true"></script>
+}

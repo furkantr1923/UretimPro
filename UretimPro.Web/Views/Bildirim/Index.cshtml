@@ -1,0 +1,32 @@
+@model BildirimListeModel
+@{
+    ViewData["Title"] = "Bildirimler";
+}
+
+<div class="sayfa-baslik">
+    <div>
+        <h1 tabindex="-1">Bildirimler</h1>
+        <p>Rolüne gelen tüm uyarılar. Yeni bildirimler ekrana anında düşer.</p>
+    </div>
+</div>
+
+<section class="kart">
+    @if (Model.Bildirimler.Count == 0)
+    {
+        <div class="bos"><div class="ikon">@Ikon.Ciz("zil", 36)</div>Henüz bildirim yok.</div>
+    }
+    <div class="uyarilar">
+        @foreach (var b in Model.Bildirimler)
+        {
+            var yeni = b.Zaman > Model.SonOkuma;
+            <a class="uyari-oge @Gorunum.SeviyeSinif(b.Seviye)" href="@(b.Link ?? "#")">
+                <span class="ikon">@Ikon.Ciz(b.Seviye == "kritik" ? "ncr" : b.Seviye == "uyari" ? "spc" : "bilgi", 20)</span>
+                <span style="flex:1">
+                    <strong>@b.Baslik @if (yeni) { <span class="rozet bakir" style="margin-left:6px">Yeni</span> }</strong>
+                    <span>@b.Mesaj</span>
+                </span>
+                <small class="renk-soluk" style="white-space:nowrap">@b.Zaman.ToString("dd.MM HH:mm")</small>
+            </a>
+        }
+    </div>
+</section>
